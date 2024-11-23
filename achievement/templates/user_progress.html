@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% load static %}  
+{% block title %}AI Insights{% endblock %}
+
+{% block content %}
+    <link rel="stylesheet" href="{% static 'css/achievement.css' %}" id="searchForm">
+<main class="container">
+    {% include "achievement_tab.html" %}
+    <div class="card">
+        <h2>User Progress</h2>
+        <form method="GET" action="{% url 'achievement:user_progress' %}" onsubmit="clearInput()"  >
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" placeholder="Search user..." value="{{ request.GET.search }}", list="usernames" id="searchInput"  autocomplete="off" >
+                <datalist id="usernames"  class="form-control" style="display:none;"> 
+                    {% for user in all_users %}
+                        <option value="{{ user.username }}">{{ user.username }}</option>
+                    {% endfor %}
+                </datalist>
+                <div class="input-group-prepend"> 
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="fas fa-search custom-icon-size"></i>
+                    </button>
+                </div>
+                
+            </div>
+            
+        </form>
+        
+        {% if request.GET.search %}
+        <div id="userDetails">
+            {% for user in users %}
+                
+                <div class="user-detail" data-username="{{ user.username }}">
+                    <p><strong>Name:</strong> {{ user.username }}</p>
+                    <p><strong>Email:</strong> {{ user.email }}</p>
+                </div>
+                <p><strong>Total Courses:</strong> {{ course_count }}</p>
+                <p><strong>Completed Courses:</strong> {{ completed }}</p>
+
+            {%empty%}
+                <p>No user found.</p>    
+            {% endfor %}
+        </div>
+        
+        
+        {% else %}
+        <div id="userDetails">
+            <div class="user-detail" data-username="{{ request.user.username }}">
+                <p><strong>Name:</strong> {{ request.user.username }}</p>
+                <p><strong>Email:</strong> {{ request.user.email }}</p>
+            </div>
+        </div>
+        <p><strong>Total Courses:</strong> {{ course_count }}</p>
+        <p><strong>Completed Courses:</strong> {{ completed }}</p>
+        
+        {% endif %}
+        
+              
+          
+    </div>
+
+    {% for course in page_obj_pro %}
+        <div class="course-container">
+            <div class="course-info">
+                <div class="course-icon">
+                    
+                </div>
+                <div class="course-details">
+                    <center><p class="course-title" style="padding-right: 0px;">{{ course.course.course_name }}</p></center>
+                    {% if not course.progress_percentage == 0 %}
+                    <div class="progress-container" style="width: 90vh;">
+                        <div class="progress-bar-progress" style="width: {{ course.progress_percentage }}%"> <center>{{ course.progress_percentage }}%</center> </div>
+                    </div>
+                    {% else %}
+                    <div class="progress-container" style="width: 90vh;">
+                        <center style="color: red;">0%</center>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- <button class="add-linkedin">Add to LinkedIn</button> -->
+            <a href="{% url 'course:course_detail' course.course.id %}" class="add-linkedin">Go to Course</a>
+        </div>
+    {% empty %}
+        <p>No courses found.</p>
+    {% endfor %}
+
+    <div class="pagination">
+            <span class="step-links">
+
+                {% if page_obj_pro.has_previous %}
+                    <a href="?search={{ request.GET.search }}&page=1">&laquo; First</a>
+                    <a href="?search={{ request.GET.search }}&page={{ page_obj_pro.previous_page_number }}">Previous</a>
+                {% else %}
+                    <span class="disabled">&laquo; First</span>
+                    <span class="disabled">Previous</span>
+                {% endif %}
+
+                <span class="current">
+                    Page {{ page_obj_pro.number }} of {{ page_obj_pro.paginator.num_pages }}.
+                </span>
+
+                {% if page_obj_pro.has_next %}
+                    <a href="?search={{ request.GET.search }}&page={{ page_obj_pro.next_page_number }}">Next</a>
+                    <a href="?search={{ request.GET.search }}&page={{ page_obj_pro.paginator.num_pages }}">Last &raquo;</a>
+                {% else %}
+                    <span class="disabled">Next</span>
+                    <span class="disabled">Last &raquo;</span>
+                {% endif %}
+
+            </span>
+    </div>
+</main>
+
+
+<script>
+    
+    
+    document.getElementById('searchInput').addEventListener('input', function() {
+        var input = this.value.toLowerCase();
+        var datalist =document.getElementById('usernames');
+        var options = datalist.getElementsByTagName('option');  
+        var searchInput = document.getElementById('searchInput').value.trim();
+        
+
+        
+        if (request.GET.search === '') {
+            event.preventDefault();  // Prevent form submission if search input is empty
+        }
+        while (datalist.firstChild) {
+            datalist.removeChild(datalist.firstChild);
+        }
+
+        // Filter and add options
+        var count = 0;
+        {% for user in all_users %}
+            var username = "{{ user.username }}".toLowerCase();
+            if (request.GET.search === "") {
+                
+                options.value = "{{ user.username }}";
+                datalist.appendChild(options);
+                count++;
+                if (count >= 5) break;
+            }
+        {% endfor %}
+        
+        
+        
+    });
+
+    document.addEventListener("DOMContentLoaded", function() {
+        restoreSearchQuery();
+    });
+
+    document.addEventListener("visibilitychange", function() {
+        if (!document.hidden) {
+            restoreSearchQuery();
+        }
+    });
+
+    function storeSearchQuery() {
+        const searchInput = document.getElementById("searchInput");
+        localStorage.setItem("searchQuery", searchInput.value);
+    }
+
+    function restoreSearchQuery() {
+        const searchInput = document.getElementById("searchInput");
+        const storedSearchQuery = localStorage.getItem("searchQuery");
+        if (storedSearchQuery) {
+            searchInput.value = storedSearchQuery;
+        }
+    }
+    
+    
+</script>
+{% endblock %}
+
+

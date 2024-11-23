@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{%load static%}
+
+{% block title %}Performance Analytics{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="{% static 'css/performance.css' %}">
+<body>
+    <div class="container">
+        {% include "achievement_tab.html" %}
+        
+
+        <div id="performance" class="tab-content active">
+            {% if page_obj %}
+            <div class="grid">
+                {% for data in page_obj %}
+                <div class="card" id="card-{{ forloop.counter }}"> 
+                        <h2>{{ data.course }}</h2>
+                        {% if not data.completion_rate == 0 %}
+                            <div class="progress-container">
+                                <div class="progress-bar-performance" style="width: {{ data.completion_rate }}%"> <center>{{ data.completion_rate }}%</center></div> <!-- Set the width dynamically -->
+                            </div>
+                        {% else %}
+                            <div class="progress-container">
+                                <center style="color: red;">0%</center>
+                            </div>
+                        {% endif %}
+                        <p>
+                            <strong style="margin-right: 8px;">Average Score:</strong>
+                            {% if data.score  <= 50  %} 
+                                <span style="color: #d01818; font-weight: bold; font-size: 18px;">{{ data.score }}</span>
+                            {% elif data.score  <= 80     %}
+                                <span style="color: rgb(244, 179, 0); font-weight: bold; font-size: 18px;">{{ data.score }}</span>
+                            {% else %}
+                                <span style="color: rgb(3, 195, 76); font-weight: bold; font-size: 18px;">{{ data.score }}</span>
+                            {% endif %}
+                        </p>
+                        <p>
+                            <strong>Assessments:</strong> {{ data.total_assessments }} 
+                            <span style="margin-left: 25px;">
+                                <a href="javascript:void(0);" onclick="toggleTable('table-{{ forloop.counter }}', 'card-{{ forloop.counter }}')">
+                                    {% if data.qualified_attempts > 0 %}
+                                    <strong>Completed: {{ data.qualified_attempts }}</strong> 
+                                    {% else %}
+                                    <strong>Completed: 0 </strong> 
+                                    {% endif %}
+                                </a>
+                                <span style="margin-left: 25px;">    
+                                <a href="javascript:void(0);" onclick="toggleTable('table-{{ forloop.counter }}', 'card-{{ forloop.counter }}')">
+                                    {% if data.total_attempts > 0 %}
+                                    <strong>Attempted: {{ data.total_attempts }}</strong>
+                                    {% else %}
+                                    <strong>Attempted: 0</strong>
+                                    {% endif %}
+                                </a>
+                            </span>
+                        </p>
+                        <div id="table-{{ forloop.counter }}" class="assessment-table" style="display: none;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Assessment Title</th>
+                                        <th>Assignment Score</th>
+                                        <th>Quiz Score</th>
+                                        <th>Attempted Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for attempt in data.attempts %}
+                                    <tr>
+                                        <td>{{ attempt.assessment.title }}</td>
+                                        <td>{{ attempt.score_ass }}</td>
+                                        <td>{{attempt.score_quiz}}</td>
+                                        <td>{{ attempt.attempt_date }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            
+                        </div>
+                </div>   
+                {% endfor %}       
+            </div>
+            <div id="expanded-card-container"></div>
+            <div class="pagination">
+                <span class="step-links">
+                    {% if page_obj.has_previous %}
+                        <a href="?search={{ request.GET.search }}&page=1">&laquo; First</a>
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% else %}
+                        <span class="disabled">&laquo; First</span>
+                        <span class="disabled">Previous</span>
+                    {% endif %}
+
+                    <span class="current">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+                    </span>
+
+                    {% if page_obj.has_next %}
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.next_page_number }}">Next</a> 
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                    {% else %}
+                        <span class="disabled">Next</span>
+                        <span class="disabled">Last &raquo;</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% else %}
+                <center> <p>No performances found.</p> </center>
+            {% endif %}
+            
+        </div>
+        </div>
+    </div>
+    <script>
+        // Function to go back to the previous view
+        function goBack() {
+            window.history.back();
+        }
+        // Function to store the active tab in localStorage
+        function setTab(tabName) {
+            localStorage.setItem('activeTab', tabName);
+            loadActiveTab();
+        }
+
+        // Function to load the active tab
+        function loadActiveTab() {
+            var activeTab = localStorage.getItem('activeTab') || 'performance'; // Default to 'certificates'
+
+            document.querySelectorAll('.tab').forEach(button => {
+                if (button.getAttribute('onclick').includes(activeTab)) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+
+            document.querySelectorAll('.tab-content').forEach(content => {
+                if (content.id === activeTab) {
+                    content.style.display = 'block';
+                } else {
+                    content.style.display = 'none';
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadActiveTab);
+        
+        let currentlyExpandedCardId = null;
+        let previousScrollPosition = 0;
+        function toggleTable(tableId, cardId) {
+            var table = document.getElementById(tableId);
+            var card = document.getElementById(cardId);
+            var expandedCardContainer = document.getElementById('expanded-card-container');
+            console.log("Table ID:", tableId);
+            console.log("Card ID:", cardId);
+            console.log("Table Element:", table);
+            console.log("Card Element:", card);
+            console.log("Expanded Card Container:", expandedCardContainer);
+            if (table && card && expandedCardContainer) {
+                if (currentlyExpandedCardId === cardId) {
+                    // Hide the expanded card if it's already displayed
+                    const expandedCard = expandedCardContainer.querySelector('.expanded-card');
+                    if (expandedCard) {
+                        expandedCard.classList.add('hidden');
+                        setTimeout(() => {
+                            expandedCardContainer.innerHTML = '';
+                            window.scrollTo({ top: previousScrollPosition, behavior: 'smooth' });
+                        }, 300); // Match the duration of the CSS transition
+                    };
+                    currentlyExpandedCardId = null;
+                } else {
+                    // Save the current scroll position
+                    previousScrollPosition = window.scrollY;
+                    
+        
+                    // Create a new card element
+                    var newCard = document.createElement('div');
+                    newCard.className = 'card expanded-card';
+                    newCard.innerHTML = `
+                        <h2>${card.querySelector('h2').innerHTML}</h2>
+                        <div class="progress-container">
+                            ${card.querySelector('.progress-container').innerHTML}
+                        </div>
+                        <p><strong>Average Score:</strong> ${card.querySelector('p').innerHTML}</p>
+                        <div class="assessment-table expanded">
+                            ${table.innerHTML}
+                        </div>
+                        <button class="rollback-button" onclick="rollback()">Back</button>
+                    `;
+                    expandedCardContainer.appendChild(newCard);
+                    currentlyExpandedCardId = cardId;
+                    // Scroll to the expanded card smoothly
+                    expandedCardContainer.scrollIntoView({ behavior: 'smooth' });
+                }
+            } else {
+                console.error("One or more elements not found.");
+            }
+        }
+    
+
+
+
+        function rollback() {
+            const expandedCardContainer = document.getElementById('expanded-card-container');
+            const expandedCard = expandedCardContainer.querySelector('.expanded-card');
+            if (expandedCard) {
+                expandedCard.classList.add('hidden');
+                setTimeout(() => {
+                    expandedCardContainer.innerHTML = '';
+                }, 300); // Match the CSS transition duration
+            }
+            currentlyExpandedCardId = null;
+        }
+    </script>
+
+</body>
+{% endblock %}
+
