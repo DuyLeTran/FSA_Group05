@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %} 
+{% block content %}
+{% include "achievement/tab.html" %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+
+<div class='card' style="padding: 12px">
+    <form class="d-flex" role="search">
+        <label for="id_search_by" class="me-2 form-group d-flex align-items-center">{{form.course.label}}</label>
+        <input list="course_list" class="form-control me-2" type="search" placeholder="{{ form.course.value|default:'All'}}" aria-label="Search" name="course">
+        <datalist id = course_list>
+            <option value = 'All'></option>
+            {% for course in all_courses %} 
+                <option value="{{course.course_code}} - {{course}}">
+            
+            {% endfor %}
+        </datalist>
+        <button class="btn btn-outline-success" type="submit">Search</button>
+        
+    </form>
+</div>
+
+{% if message %}
+<!-- ---------- Invalid input course ------------  -->
+    <div style="padding: 10px;">
+        <h5 class="text-center" style="color: rgb(226, 107, 15);"> {{message}}</h5>
+    </div>
+{% else %}
+    <!-- --------------------------- Display specific course ----------------------------- -->
+    {% if display == 'specific' %}
+        {{form.course.value}}
+    {% else %}
+    <!-- ----------------------------- Display all course ----------------------------- -->
+    <div class="container text-center">
+        <div class="row pt-2">
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Total Courses</strong></p>
+                <p class="mb-0">{{ all_courses.count }}</p>
+            </div>
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Enroll</strong></p>
+                <p>{{context.course_enroll_count }}</p>
+            </div>
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Unenroll</strong></p>
+                <p>{{context.course_unenroll_count}}</p>
+            </div>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; width: 100%; margin: 0 auto;">
+        <div style="flex: 1; padding: 20px;">
+            <canvas id="courseChart" style="max-height: 400px; max-width: 100%;"></canvas>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin: 0 auto;">
+        <div style="width: 40%; text-align: center;">
+            <canvas id="passRateChart"></canvas>
+        </div>
+        <div style="width: 40%; text-align: center;">
+            <canvas id="passRateChart1"></canvas>
+        </div>
+    </div>
+    <!-- ----------------------------- Bar chart ----------------------------- -->
+    {{ context.course_code|json_script:"course-code"}}
+    {{ context.course_name|json_script:"course-names"}}
+    {{ context.enroll_counts|json_script:"enroll-data" }}
+    {{ context.pass_counts|json_script:"pass-data" }}
+    <!-- -------------------- Pie chart highest pass percent ----------------------------- -->
+    {{ context.highest_pass_course_name|json_script:"hightestCourseName" }}
+    {{ context.pass_count_highest|json_script:"pass-count-highest" }}
+    {{ context.in_progress_count_highest|json_script:"in_progress-count-highest" }}
+    <!-- -------------------- Pie chart lowest pass percent ----------------------------- -->
+    {{ context.lowest_pass_course_name|json_script:"lowestCourseName" }}
+    {{ context.pass_count_lowest|json_script:"pass-count_lowest" }}
+    {{ context.in_progress_count_lowest|json_script:"in_progress-count-lowest" }}
+
+    {% endif %}
+{% endif %}
+
+
+<script src="{% static 'js/chart.js' %}"></script>
+{% endblock %}

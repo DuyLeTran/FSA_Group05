@@ -1,0 +1,94 @@
+
+
+{% extends "base.html" %}
+{% load form_filters %}
+{% load static %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/achievement.css' %}">
+    <style>
+        /* Additional CSS to ensure the filter form takes up space and does not overlap */
+    #filter-form {
+        display: none; /* Hide initially */
+        margin-top: 20px; /* Adds spacing between filter form and previous content */
+        background-color: #f9f9f9; /* Optional: to visually separate the form from content */
+        padding: 20px; /* Optional: adds padding inside the form */
+        border-radius: 5px; /* Optional: rounded corners */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Optional: soft shadow for better visibility */
+    }
+
+    /* If the form is visible, add additional space below it */
+    #filter-form:visible {
+        margin-top: 20px; /* Ensure space between the form and content below */
+    }
+
+    </style>
+</head>
+{% block content %}
+   
+
+<div id="filter-container">
+    <!-- Button to Show/Hide the Filter Form -->
+    <div id="filter-header">
+        <button id="show-filter-btn">Show Filter</button>
+    </div>
+
+    <!-- Filter Form (Hidden Initially) -->
+    <form method="get" id="filter-form" style="display: none;background-color: #f9f9f9; position: fixed;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" id="filter-btn" class="hidden-btn">Filter</button>
+    </form>
+</div>
+
+    <div class="ai-insights-list">
+        {% for insight in page_obj %}
+            <div class="insight-item">
+                <p><strong>Course:</strong>
+                    {% if insight.course %}
+                        {{ insight.course.course_name }}
+                    {% else %}
+                        No Course
+                    {% endif %}
+                </p>
+                <p><strong>Insight:</strong> {{ insight.insight_text }}</p>
+                <p><strong>Type:</strong> {{ insight.insight_type }}</p>
+                <p><strong>Created At:</strong> {{ insight.created_at }}</p>
+            </div>
+        {% empty %}
+            <p>No insights found for the selected filters.</p>
+        {% endfor %}
+    </div>
+
+    <div>
+        <span>Page: {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div>
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&{{ query_params.urlencode }}">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&{{ query_params.urlencode }}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('show-filter-btn').addEventListener('click', function() {
+            var filterForm = document.getElementById('filter-form');
+            var filterButton = document.getElementById('filter-btn');
+            if (filterForm.style.display === 'none' || filterForm.style.display === '') {
+                filterForm.style.display = 'block';  // Show the form
+                filterButton.style.display = 'inline-block';  // Show the filter button
+            } else {
+                filterForm.style.display = 'none';  // Hide the form
+                filterButton.style.display = 'none';  // Hide the filter button again
+            }
+        });
+    </script>
+
+{% endblock %}
+
+

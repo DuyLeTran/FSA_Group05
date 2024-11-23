@@ -1,0 +1,16 @@
+<ul class="nav nav-tabs my-3" role="tablist">
+    <li class="nav-item">
+        <a href="{% url 'reports:user_perform_report' %}" class="nav-link {% if request.resolver_match.url_name == 'user_perform_report' %}active{% endif %}">
+            User Performance
+        </a>
+    </li>
+    <li class="nav-item">
+        <a href="{% url 'reports:course_perform_report' %}" class="nav-link {% if request.resolver_match.url_name == 'course_perform_report' %}active{% endif %}">
+            Course Performance
+        </a>
+    </li>
+    <li class="nav-item ms-auto">
+        <!-- <a href="{% url 'reports:report_dashboard' %}" class="btn-close" style="width: 2rem; height: 5rem; background-size: 1.5rem;"></a> -->
+        <button type="button" class="btn-close" aria-label="Close" onclick=window.location.href="{% url 'reports:report_dashboard' %}"></button>
+    </li>
+</ul>

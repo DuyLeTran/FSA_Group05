@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Team{% endblock %}
+{% block content %}
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LMS Team</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Các kiểu chung */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa; /* Nền xám sáng */
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+    
+        /* Các kiểu tiêu đề */
+        h1 {
+            font-size: 2vw; /* Điều chỉnh từ 4vw xuống 3vw */
+            margin-top: 2vh; /* Giữ nguyên */
+            font-weight: 600;
+            color: #2c3e50; /* Màu tiêu đề tối hơn */
+        }
+    
+        /* Các kiểu container */
+        .container {
+            max-width: 90vw; /* Giữ nguyên */
+            margin: 0 auto;
+            padding: 2vh; /* Giữ nguyên */
+        }
+    
+        /* Các kiểu thẻ */
+        .card {
+            border: none; /* Xóa viền thẻ */
+            border-radius: 1vw; /* Điều chỉnh từ 10px xuống 1vw */
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+            max-width: 20vw; /* Giữ nguyên */
+            margin: 2vh auto; /* Giữa thẻ và thêm khoảng cách dọc */
+            padding: 2vh; /* Giữ nguyên */
+        }
+    
+        .profile-img {
+            width: 100%; /* Đặt chiều rộng 100% */
+            max-height: 25vh; /* Giữ nguyên */
+            object-fit: cover; /* Giữ tỷ lệ khung hình */
+            border-bottom: 0.2vh solid #dee2e6; /* Đường chia tách */
+        }
+    
+        .card-body {
+            padding: 1.3vh; /* Giữ nguyên */
+        }
+    
+        /* Các kiểu chữ và nút */
+        .card-title {
+            font-size: 1vw; /* Điều chỉnh từ 2.5vw xuống 2vw */
+            font-weight: 400;
+            color: #2c3e50; /* Màu chữ tối hơn */
+        }
+    
+        .card-text {
+            font-size: 0.9vw; /* Điều chỉnh từ 1.5vw xuống 1.2vw */
+            color: #6c757d; /* Màu chữ mờ */
+        }
+    
+        .btn-custom {
+            font-size: 1vw; /* Thay đổi kích thước chữ nút */
+            color: #000 !important; /* Màu chữ đen */
+            background-color: transparent !important; /* Nền trong suốt */
+            border: 0.2vw solid #000 !important; /* Điều chỉnh từ 2px xuống 0.2vw */
+            transition: all 0.3s ease-in-out !important;
+        }
+    
+        .btn-custom:hover {
+            color: #fff !important; /* Màu chữ trắng khi di chuột */
+            background-color: #007bff !important; /* Nền xanh khi di chuột */
+            border-color: #007bff !important; /* Viền xanh khi di chuột */
+        }
+    
+        .card .btn {
+            margin-top: 1vh; /* Giữ nguyên */
+            padding: 0.5vh 1.5vw; /* Điều chỉnh độ đệm */
+        }
+    
+        /* Các kiểu căn giữa nội dung */
+        .center-content {
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+    <script>
+        function searchMembers() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('.card');
+
+            cards.forEach(card => {
+                const memberName = card.querySelector('.card-title').textContent.toLowerCase();
+                if (memberName.includes(input)) {
+                    card.style.display = ''; // Show card
+                } else {
+                    card.style.display = 'none'; // Hide card
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">LMS Team Members</h1>
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <a href="{% url 'team:add_member' %}" class="btn btn-custom me-2">Add Member</a>
+                <a href="{% url 'team:import_members' %}" class="btn btn-custom me-2">Import Members</a>
+                <a href="{% url 'team:export_members' %}" class="btn btn-custom">Export Members</a>
+            </div>
+            <form method="GET" action="{% url 'team:team_list' %}" class="input-group" style="width: 40%;">
+                <input type="text" name="q" value="{{ query|default_if_none:'' }}" class="form-control" placeholder="Search by name" aria-label="Search users" style="width: 70%;">
+                <button type="submit" class="btn btn-outline-success ms-2">Search</button>
+            </form>
+        </div>
+    
+        <div class="row">
+            {% for member in members %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card" ondblclick="window.location.href='{% url 'team:member_detail' member.pk %}'">
+                    <img src="{% if member.profile_picture %}{{ member.profile_picture.url }}{% else %}{% static 'images/default-profile.png' %}{% endif %}" class="profile-img" alt="{{ member.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ member.name }}</h5>
+                        <p class="card-text">{{ member.full_name }}</p>
+                        <p class="card-text">{{ member.role }}</p>
+                        <p class="card-text">{{ member.email }}</p>
+                        {% if member.homepage %}
+                        <a href="{{ member.homepage }}" class="btn btn-custom btn-sm" target="_blank">Visit Homepage</a>
+                        {% endif %}
+                        <a href="{% url 'team:edit_member' member.pk %}" class="btn btn-custom btn-sm">Edit</a>
+                        <a href="{% url 'team:delete_member' member.pk %}" class="btn btn-custom btn-sm">Delete</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+{% endblock %}
