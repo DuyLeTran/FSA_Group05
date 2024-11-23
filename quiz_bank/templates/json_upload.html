@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load form_filters %}
+
+{% block title %}JSON Upload{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>JSON Upload</h1>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+        <p>JSON Format: [{"question":..., "options":..., "correct":..., "id":..., "question_type":...},{...}]</p>
+        {{form.json_file.label_tag}}
+        {{form.json_file|add_class:"form-control"}}
+    </div>
+    <button type="submit" class="btn btn-success">
+        Submit
+    </button>
+</form>
+</div>
+
+{% endblock %}

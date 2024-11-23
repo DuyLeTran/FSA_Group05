@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load form_filters %}
+{% block title %}Randomized Question View{% endblock %}
+
+{% block content %}
+<form method="post">
+        
+    {% csrf_token %}
+    
+    <div class="form-group">
+      <p>
+      <span>
+      Enter Number of Questions: 
+      {{ get_random_form.course.label_tag }}
+      {{ get_random_form.course|add_class:"form-control" }}
+      {{ get_random_form.number_of_questions.label_tag }}
+      {{ get_random_form.number_of_questions|add_class:"form-control" }}
+      <button type="submit" class="btn btn-primary" title="View Randomized Question for course {{course.code}}">
+        Show Randomized Questions
+      </button> 
+      {% if not is_valid %}
+      <span style="color: red;">Invalid Input (input must be an integer greater than 0)</span>
+      {% endif %}
+      
+    </span> 
+    </p>      
+    </div>
+
+</form>
+{% endblock %}
