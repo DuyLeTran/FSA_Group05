@@ -10,7 +10,7 @@
         </a>
     </li>
     <li class="nav-item">
-        <a href="{% url 'reports:risk_prediction_report' %}" class="nav-link {% if request.path == '/achievement/risk_prediction_report/' %}active{% endif %}">Risk Prediction</a>
+        <a href="{% url 'reports:risk_prediction_report' %}" class="nav-link {% if request.resolver_match.url_name == 'risk_prediction_report' %}active{% endif %}">Risk Prediction</a>
     </li>
     <li class="nav-item ms-auto">
         <!-- <a href="{% url 'reports:report_dashboard' %}" class="btn-close" style="width: 2rem; height: 5rem; background-size: 1.5rem;"></a> -->
