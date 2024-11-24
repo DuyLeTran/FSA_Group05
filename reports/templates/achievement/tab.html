@@ -1,0 +1,14 @@
+
+<ul class="nav nav-tabs my-3" role="tablist">
+    <li class="nav-item">
+        <a href="{% url 'reports:user_perform_report' %}" class="nav-link {% if request.path == '/achievement/user_perform_report/' %}active{% endif %}">User Performance</a>
+    </li>
+    <li class="nav-item">
+        <a href="{% url 'reports:course_perform_report' %}" class="nav-link {% if request.path == '/achievement/course_perform_report/' %}active{% endif %}">Course Performance</a>
+    </li>
+    <li class="nav-item">
+        <a href="{% url 'reports:risk_prediction_report' %}" class="nav-link {% if request.path == '/achievement/risk_prediction_report/' %}active{% endif %}">Risk Prediction</a>
+    </li>
+    <a href="{% url 'reports:report_dashboard' %}" class="btn btn-secondary mb-3">Back to Reports</a>
+</ul>
+  
