@@ -1,7 +1,3 @@
-{% extends 'base.html' %}
-
-{% block content %}
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +6,7 @@
     <title>Activity Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* All existing styles remain unchanged */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
@@ -101,7 +98,7 @@
 
         .chart-container {
             position: relative;
-                height: 300px;
+            height: 400px;
         }
 
         canvas {
@@ -219,6 +216,10 @@
         let activityOverTimeData = {{ activity_over_time_data|safe }};
         let charts = {};
 
+        function truncateLabel(label, maxLength = 20) {
+            return label.length > maxLength ? label.slice(0, maxLength) + '...' : label;
+        }
+
         function consolidateActivities(labels, data) {
             const consolidated = {};
             labels.forEach((label, index) => {
@@ -236,7 +237,7 @@
 
         function createChartData(labels, data) {
             return {
-                labels: labels,
+                labels: labels.map(label => truncateLabel(label)),
                 datasets: [{
                     data: data,
                     backgroundColor: colorPalette.slice(0, labels.length),
@@ -253,6 +254,29 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.chart.data.labels[context.dataIndex] || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
                     ...options
                 }
             });
@@ -356,7 +380,7 @@
             const newRecentActivities = consolidateActivities(data.recent_activities_labels, data.recent_activities_data);
             
             function updateChartData(chart, labels, data) {
-                chart.data.labels = labels;
+                chart.data.labels = labels.map(label => truncateLabel(label));
                 chart.data.datasets[0].data = data;
                 chart.update();
             }
@@ -406,5 +430,4 @@
         window.addEventListener('load', initializeCharts);
     </script>
 </body>
-</html>
-{% endblock %}
+</html> 

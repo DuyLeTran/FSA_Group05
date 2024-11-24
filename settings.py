@@ -29,14 +29,15 @@ LOGIN_REDIRECT_URL = ''
 # settings.py
 ADMIN_EMAIL = 'Toshidoakira@gmail.com'
 
-X_FRAME_OPTIONS = 'SAMEORIGIN'
-
-XS_SHARING_ALLOWED_METHODS = ['POST','GET','OPTIONS', 'PUT', 'DELETE']
 
 # Add or update media settings for handling uploaded files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+#for PDF
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+XS_SHARING_ALLOWED_METHODS = ['POST','GET','OPTIONS', 'PUT', 'DELETE']
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
