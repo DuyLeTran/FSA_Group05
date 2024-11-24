@@ -40,6 +40,13 @@ h1 {
 .tab-content.active {
     display: block;
 }
+.card {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
 .badge {
     display: inline-block;
     padding: 3px 7px;
@@ -93,6 +100,8 @@ h1 {
 .course-icon img {
     width: 50px;
     height: 50px;
+    max-width: 100%;
+    height: auto;
     border-radius: 4px;
     margin-right: 10px;
 }
@@ -208,3 +217,52 @@ h1 {
 }
 
 
+.input-group {
+    margin-bottom: 1rem;
+    display: none;
+    flex-wrap: wrap;
+    align-items: stretch;
+    width: 100%;
+
+}
+
+.input-group-prepend .btn {
+    background-color: #0d6efd;
+    border-left:0 ;
+    color: #fff;
+    height: auto;
+}
+
+.form-control {
+    border-right: 0;
+    border-radius: 0;
+    display: none;
+    width: 100%;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057;
+
+}
+
+.custom-icon-size {
+    font-size: 1.5em; /* Adjust the size as needed */
+}
+
+
+
+#usernames {
+    display: none;
+}
+
+.datalist {
+    display: none;
+    position: absolute;
+    background-color: #f1f1f1;
+    z-index: 1;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}

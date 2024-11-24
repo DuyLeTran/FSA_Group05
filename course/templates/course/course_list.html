@@ -2,9 +2,9 @@
 {% load static %}
 
 {% block content %}
-<head>
+<!-- <head>
     <link rel="stylesheet" type="text/css" href="{% static 'course/course.css' %}">
-</head>
+</head> -->
 <body id="course-list">
 <div class="full-width-container bg-white p-6">
     {% comment %} <h1 class="text-2xl font-bold mb-6 main-color-text">Courses</h1> {% endcomment %}
@@ -12,12 +12,16 @@
         <h1 class="course-title font-bold mb-6 main-color-text">Courses</h1>
 
         <!-- Search Form -->
-        <div class="search-container">
-            <form method="GET" action="{% url 'course:course_search' %}" class="form-inline">
-                <input type="text" name="query" class="search-input p-2 border border-gray-300 rounded" placeholder="Search...">
-                <button type="submit" class="btn main-color px-4 py-2 rounded ml-2">Search</button>
-            </form>
-            <div>
+        <div class="row align-items-center mb-3">
+            <div class="col-md-8">
+                <form method="GET" action="{% url 'course:course_search' %}" class="d-flex">
+                    <input type="text" name="query" class="form-control me-2" placeholder="Search..." aria-label="Search">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i>
+                    </button>
+                </form>
+            </div>
+            <div class="col-md-4 text-md-end mt-2 mt-md-0">
                 {% if is_instructor or user.is_superuser %}
                     <a href="{% url 'course:course_add' %}" class="btn btn-primary">Add New Course</a>
                 {% endif %}
@@ -35,17 +39,29 @@
                         <img src="{{ course.image.url }}" class="card-img-top" alt="{{ course.course_name }}" style="object-fit: cover;">
                     {% else %}
                         <img src="{% static 'course/images/chotbg.png' %}" alt="Default Image" class="course-image">
-                       
+
                     {% endif %}
                 </div>
 
-                
-    
+
+
                 <!-- Card Body -->
                 <div class="card-body">
                     <h5 class="card-title main-color-text">{{ course.course_name }}</h5>
                     <p class="card-text text-muted">{{ course.description|truncatewords:20 }}</p>
-    
+                    <p class="card-text main-color-text"><strong>Price: </strong>
+                        {% if course.discount > 0 %}
+                            <span class="original-price" style='text-decoration: line-through;color: grey;'>{{ course.price }}$</span>
+                            <span class="discounted-price" style="color: red;font-weight: bold;">{{ course.discounted_price }}$</span>
+                        {% else %}
+                            {% if course.price %}
+                                {{ course.price }}$
+                            {% else %}
+                                Free
+                            {% endif %}
+                        {% endif %}
+                    </p>
+
                     {% if not is_instructor %}
                         <!-- Completion Progress Bar -->
                         <div class="progress mb-3" style="height: 8px;">
@@ -55,30 +71,37 @@
                         <small class="text-muted">{{ course.completion_percent }}% Complete</small>
                     {% endif %}
                 </div>
-    
+
                 <!-- Card Footer -->
                 <div class="card-footer bg-white d-flex justify-content-between align-items-center">
                     <a href="{% url 'course:course_detail' course.id %}" class="btn main-color btn-sm" title="View Details">
-                        <i class="fas fa-eye"></i> View
+                        <i class="fas fa-eye"></i>
                     </a>
+
                     {% if user.is_superuser or course.instructor == user %}
                         <div>
-                            <a href="{% url 'course:course_edit' course.id %}" class="btn btn-warning btn-sm me-2" title="Edit">
+                            <a href="{% url 'course:course_edit_detail' course.id %}" class="btn btn-warning btn-sm me-2" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
+
+                            <!-- Duplicate Button as an Icon Only -->
+                            <a href="?duplicate_course_id={{ course.id }}" class="btn btn-secondary btn-sm me-2" title="Duplicate">
+                                <i class="fas fa-copy"></i> <!-- Only the copy icon, no text -->
+                            </a>
+
                             <a href="{% url 'course:course_delete' course.id %}" class="btn btn-danger btn-sm me-2" title="Delete">
                                 <i class="fas fa-trash-alt"></i>
                             </a>
-                            <a href="{% url 'course:toggle_publish' course.pk %}" class="btn btn-sm" style="background-color: #097969 !important;">
-                                {% if course.published %}
-                                    Unpublish
-                                {% else %}
-                                    Publish
-                                {% endif %}
-                            </a>
+
+                            {% if course.published %}
+                                <a href="{% url 'course:toggle_publish' course.pk %}" class="btn btn-secondary">Unpublish</a>
+                            {% else %}
+                                <a href="{% url 'course:toggle_publish' course.pk %}" class="btn btn-primary" style="background-color: #097969 !important;">Publish</a>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
+
             </div>
         </div>
         {% empty %}
@@ -87,8 +110,8 @@
         </div>
         {% endfor %}
     </div>
-    
-    
+
+
     <nav aria-label="Page navigation" class="mb-6">
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
@@ -180,4 +203,26 @@
     {% endif %}
 </div>
 </body>
+{% endblock %}
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+
+<script>
+$(document).ready(function(){
+    $('#feedbackCarousel').carousel({
+        interval: 3000
+    });
+
+    // Enable carousel controls
+    $(".carousel-control-prev").click(function(){
+        $("#feedbackCarousel").carousel("prev");
+    });
+    $(".carousel-control-next").click(function(){
+        $("#feedbackCarousel").carousel("next");
+    });
+</script>
 {% endblock %}

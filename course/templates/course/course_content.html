@@ -49,7 +49,6 @@
                 </div>
                 {% endif %}
             </div>
-            
 
             <div class="materials-list mb-4 border rounded p-3" style="max-height: 70vh; overflow-y: auto;">
                 <div class="section-title h5">{{ current_session.name }}</div>
@@ -67,6 +66,8 @@
                                     {{ preview_content|safe }}
                                 {% elif content_type == 'references' %}
                                     {{ preview_content|safe }}
+                                {% elif content_type == 'assessments' %}
+                                    <a href="{% url 'assessment:take_assessment' assessment.id %}" class="btn btn-outline-secondary" style="background-color: gray; width: 13rem;">Take Assessement</a>
                                 {% else %}
                                 <p>No preview available for this material.</p>
                                 {% endif %}
@@ -172,8 +173,8 @@ $(document).ready(function() {
 
     // Add iframe resizing logic here
     $('iframe').css({
-        'width': '1040px',
-        'height': '590px',
+        'width': '65rem',
+        'height': '37rem',
         'border': 'none'
     });
 });

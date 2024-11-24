@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from course.models import Course, Enrollment, Session, Completion, Tag, CourseMaterial
+from assessments.models import Assessment, CourseFinalScore
 from django.db.models import Count
 from module_group.models import ModuleGroup
 from user.models import User, Student, Profile

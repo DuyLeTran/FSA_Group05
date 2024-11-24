@@ -16,7 +16,7 @@ class CourseForm(forms.ModelForm):
 
     class Meta:
         model = Course
-        fields = ['course_name', 'course_code', 'description', 'creator', 'instructor', 'prerequisites', 'tags', 'image']  # sửa lại
+        fields = ['course_name', 'course_code', 'description', 'creator', 'instructor', 'prerequisites', 'tags', 'image', 'price', 'discount']  # sửa lại
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

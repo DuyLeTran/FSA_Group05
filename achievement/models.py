@@ -7,6 +7,12 @@ from assessments.models import Assessment, StudentAssessmentAttempt
 from django.db.models import OuterRef, Subquery,Max
 from user.models import User
 from .ai_model import AIInsightModel
+from course.models import Course, Enrollment,SessionCompletion,Session
+from assessments.models import Assessment, StudentAssessmentAttempt,CourseFinalScore,AssessmentFinalScore
+from django.db.models import OuterRef, Subquery,Max,F
+from user.models import User
+
+ 
 #########################################################################################################
 class UserProgress(models.Model):
     user = models.ForeignKey('user.User', on_delete=models.CASCADE)  # String reference to avoid circular import
@@ -83,62 +89,57 @@ def update_enrollment_progress(sender, instance, **kwargs):
         UserProgress.objects.filter(user=instance.student, course=instance.course).delete()
 #########################################################################################################
 class PerformanceAnalytics(models.Model):
-    id = models.AutoField(primary_key=True) 
+     
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    average_score = models.FloatField(default=0.0)
-    completion_rate = models.FloatField(default=0.0)
-
-    def update_performance(self):
-        highest_score = StudentAssessmentAttempt.objects.filter(
-            user=self.user, assessment=OuterRef('assessment')
-        ).values('assessment').annotate(highest_score=Max('score_ass')).values('highest_score')
-
-        highest_attempts = StudentAssessmentAttempt.objects.filter(
-            user=self.user,
-            assessment__course=self.course,
-            score_ass__in=Subquery(highest_score)
-        )
-        
-        total_assessments = Assessment.objects.filter(course=self.course).count()
-        if total_assessments > 0:
-            completed_assessments = highest_attempts.filter().count()
-            # print('count:',completed_assessments)
-            total_score = highest_attempts.aggregate(models.Sum('score_ass'))['score_ass__sum'] or 0
-            self.average_score = round(total_score / completed_assessments, 3) if completed_assessments > 0 else 0
-            self.completion_rate = round((completed_assessments / total_assessments) * 100, 2)
-        else:
-            self.average_score = 0.0
-            self.completion_rate = 0.0
-        self.save()
+    score = models.FloatField(default=0) 
+    completion_rate = models.FloatField(default=0.0, null=True, blank=True)
     
+    def update(self):
+        assessments = Assessment.objects.filter(course=self.course)
+        total_sessions = Session.objects.filter(course=self.course).count()
+        completed_sessions = SessionCompletion.objects.filter(session__course=self.course, user=self.user, completed=True).count()
+        total_assessments = Assessment.objects.filter(course=self.course).count()
+        for assessment in assessments:
+            qualifying_score = assessment.qualify_score
+            completed_assessments = AssessmentFinalScore.objects.filter(
+                    assessment__course=self.course,
+                    user=self.user
+                ).annotate(
+                    total_score=F('final_score_ass') + F('final_score_quiz')
+                ).filter(
+                    total_score__gte=qualifying_score
+                ).count()
+
+        self.completion_rate = round(((completed_sessions + completed_assessments)/ (total_sessions + total_assessments)) * 100, 2) if total_sessions > 0 else 0
+        highest_score = CourseFinalScore.objects.filter(user=self.user, course=self.course).aggregate(Max('score'))['score__max']
+            
+        self.score = highest_score or 0
+            
+        
+        self.save()
     class Meta:
-        db_table = 'achievement_performance' 
+        db_table ='achievement_performance'
+@receiver([post_delete,post_save],sender = CourseFinalScore)
+def update_analytics(sender, instance, **kwargs):
+    
+        performance,created =PerformanceAnalytics.objects.get_or_create(
+            user = instance.user,
+            course = instance.course
+        )  
+        performance.update()      
+    
+        
 
-@receiver(post_save, sender=StudentAssessmentAttempt)
-@receiver(post_delete, sender=StudentAssessmentAttempt)
-def update_performance_analytics(sender, instance, **kwargs):
-    try:
-        performance = PerformanceAnalytics.objects.get(
-            user=instance.user,
-            course=instance.assessment.course 
-        )
-        performance.update_performance()
-    except PerformanceAnalytics.DoesNotExist:
-        pass
-
-
-
-@receiver(post_save, sender=Assessment)
-@receiver(post_delete, sender=Assessment)
-def update_performance_analytics(sender, instance, **kwargs):
-        students = User.objects.filter(id__in=StudentAssessmentAttempt.objects.filter(assessment__course=instance.course).values('user'))
-        for student in students:
-            performance = PerformanceAnalytics.objects.get(
-                user=student,
-                course=instance.course
-            )
-            performance.update_performance()
+@receiver([post_save,post_delete],sender = StudentAssessmentAttempt)
+def update_analytics(sender, instance, **kwargs):
+    
+        performance,created =PerformanceAnalytics.objects.get_or_create(
+            user = instance.user,
+            course = instance.assessment.course
+        )  
+        performance.update()
+    
 
 
 @receiver(post_save, sender=Enrollment)
@@ -163,7 +164,7 @@ def delete_performance(sender, instance, **kwargs):
 class AIInsights(models.Model):    
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True)
-    insight_text = models.TextField(blank=True, null=True)
+    insight_text = models.CharField(max_length=255, blank=True, null=True)
     insight_type = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

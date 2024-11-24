@@ -13,10 +13,12 @@ class Course(models.Model):
 
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_courses')
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='taught_courses')
-    published = models.BooleanField(default=True)
+    published = models.BooleanField(default=False)
     prerequisites = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='is_prerequisite_for')
     tags = models.ManyToManyField('Tag', blank=True, related_name='courses')
     image = models.ImageField(upload_to='course_images/', null=True, blank=True)
+    price = models.FloatField(default=0)  # Thêm giá trị mặc định nếu cần
+    discount = models.FloatField(default=0)
 
     def __str__(self):
         return self.course_name
@@ -57,7 +59,22 @@ class Course(models.Model):
                     generated_html_content=generated_html_content
                 )
                 certification.save()
-                
+
+    def discounted_price(self):
+        return self.price * (1 - self.discount / 100)
+
+class Transaction(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='transactions')
+    is_successful = models.BooleanField(default=False)  # Trạng thái giao dịch thành công hoặc không
+    transaction_date = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ('user', 'course')  # Đảm bảo mỗi người dùng chỉ có một giao dịch với mỗi khóa học
+
+    def __str__(self):
+        return f"Transaction for {self.user} - {self.course} - {'Success' if self.is_successful else 'Failed'}"
+
 class Topic(models.Model):
     name = models.CharField(max_length=255, unique=True)
 
@@ -87,13 +104,14 @@ class Enrollment(models.Model):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
     date_enrolled = models.DateTimeField(auto_now_add=True)
+    date_unenrolled = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         unique_together = ('student', 'course')
 
     def __str__(self):
         return f"{self.student} enrolled in {self.course}"
-    
 
 class CourseMaterial(models.Model):
     MATERIAL_TYPE_CHOICES = [
@@ -101,6 +119,7 @@ class CourseMaterial(models.Model):
         ('labs', 'Labs'),
         ('lectures', 'Lectures'),
         ('references', 'References'),  # New material type
+        ('assessments', 'Assessments'),
     ]
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='materials', null=True)
     material_id = models.PositiveIntegerField()  # Make sure this uniquely identifies the material
@@ -121,7 +140,6 @@ class ReadingMaterial(models.Model):
 
     def __str__(self):
         return self.title
-
 
 class Completion(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE)
@@ -186,7 +204,7 @@ def mark_session_complete(course, user, session):
 #         )
 
 class UserCourseProgress(models.Model):
-    user = models.ForeignKey('user.User', related_name='course_progress', on_delete=models.CASCADE)  # Thêm related_name
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='course_progress', on_delete=models.CASCADE)  # Thêm related_name
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     progress_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     last_accessed = models.DateTimeField(auto_now=True)  # Cập nhật thời gian truy cập gần nhất
@@ -196,3 +214,14 @@ class UserCourseProgress(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.course} - {self.progress_percentage}%"
+
+class MaterialViewingDuration(models.Model):
+    material = models.ForeignKey(CourseMaterial, on_delete=models.CASCADE, related_name='duration', null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='duration', on_delete=models.CASCADE)
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    time_spent = models.DurationField(default=timezone.timedelta)  # Stores the total time spent
+    come_back = models.PositiveIntegerField(default=0)  # Counts how many times the user comes back
+
+    def __str__(self):
+        return f"{self.user} viewing {self.material} - Time Spent: {self.time_spent} - Come Back: {self.come_back}"

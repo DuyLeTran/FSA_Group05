@@ -141,6 +141,7 @@
 
 </body>
 <script>
+<<<<<<< HEAD
     // Pass in the variables from your template
     const labels = {{labels|safe}}
     const data = {{data|safe}};
@@ -162,6 +163,13 @@
     });
 </script>
 
+=======
+const labels = {{ labels|safe }};
+const data = {{ data|safe }};
+const chart_name = '{{ chart_name }}';
+</script>
+<script src="{% static 'js/achievement.js' %}"></script>
+>>>>>>> origin/trungnd
 
 
 {% endblock %}

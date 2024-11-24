@@ -1,7 +1,7 @@
 from django.contrib import admin
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
-from .models import AssessmentType, Assessment, InvitedCandidate, StudentAssessmentAttempt, UserAnswer
+from .models import AssessmentType, Assessment, InvitedCandidate, StudentAssessmentAttempt, UserAnswer,AssessmentFinalScore,CourseFinalScore
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget
 from course.models import Course
@@ -53,7 +53,7 @@ class AssessmentResource(resources.ModelResource):
 @admin.register(Assessment)
 class AssessmentAdmin(ImportExportModelAdmin):
     resource_class = AssessmentResource
-    list_display = ('title', 'course', 'assessment_type', 'invited_count', 'assessed_count', 'qualified_count')
+    list_display = ('title', 'course', 'assessment_type', 'invited_count', 'assessed_count', 'qualified_count','assessment_weights','quiz_weights','ass_weights')
     search_fields = ('title', 'course__course_name', 'assessment_type__type_name')  # Fixed typo 'coure_name'
     list_filter = ('course', 'assessment_type')
 
@@ -95,3 +95,6 @@ class AssessmentTypeAdmin(ImportExportModelAdmin):
     resource_class = AssessmentTypeResource
     list_display = ('type_name',)  # Columns to be displayed in the list view
     search_fields = ('type_name',)  # Add search functionality by `type_name`
+
+admin.site.register(AssessmentFinalScore)
+admin.site.register(CourseFinalScore)

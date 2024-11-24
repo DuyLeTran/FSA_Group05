@@ -10,6 +10,11 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models import F, Sum
+from user.models import User
+
+from django.db.models.signals import post_save,post_delete
+from django.dispatch import receiver
 
     
 class AssessmentType(models.Model):
@@ -29,7 +34,7 @@ class AssessmentType(models.Model):
 
 
 class Assessment(models.Model):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)  # This line ensures a course reference
+    course = models.ForeignKey(Course, on_delete=models.CASCADE,related_name='assessments')  # This line ensures a course reference
     
     title = models.CharField(max_length=255)
     
@@ -53,6 +58,11 @@ class Assessment(models.Model):
 
     time_limit = models.IntegerField(default=30)
     invited_emails = models.TextField(blank=True, verbose_name="Invited Candidates")
+    
+    #Weights for the assessment
+    assessment_weights = models.FloatField(default=1.0, verbose_name="Weights")
+    ass_weights= models.FloatField(default=0.5, blank=True,null=True)
+    quiz_weights =models.FloatField(default=0.5,null=True,blank=True)
     
     class Meta:
         ordering = ['created_at', 'course']
@@ -122,6 +132,7 @@ class StudentAssessmentAttempt(models.Model):
     # Scoring and feedback
     score_quiz = models.IntegerField(default=0, verbose_name="Quiz Score")
     score_ass = models.IntegerField(default=0, verbose_name="Assignment Score")
+    
     note = models.TextField(blank=True, null=True, verbose_name="Notes")
 
     # Additional fields to track user answers and submissions
@@ -129,14 +140,14 @@ class StudentAssessmentAttempt(models.Model):
     user_submissions = models.ManyToManyField('exercises.Submission', related_name='attempts', blank=True)
 
     is_proctored = models.BooleanField(default=False)
-    proctoring_data = models.JSONField(null=True, default=dict)
+    proctoring_data = models.JSONField(null=True,blank=True, default=dict)
     
     # Timestamps and User relations
     attempt_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "Student Assignment Attempt"
-        verbose_name_plural = "Student Assignment Attempts"
+        verbose_name_plural = "Student Assignmenint Attempts"
 
     def __str__(self):
         user_info = self.user.username if self.user else self.email  # Display user or email
@@ -155,3 +166,100 @@ class StudentAssessmentAttempt(models.Model):
         # Clean data before saving
         self.clean()
         super().save(*args, **kwargs)
+
+class AssessmentFinalScore(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    email = models.EmailField(blank=True, null=True, verbose_name="Email Address")  # Optional email for anonymous users
+    assessment =models.ForeignKey(Assessment,on_delete=models.CASCADE)
+    final_score_ass = models.FloatField(default=0)
+    final_score_quiz =models.FloatField(default=0)
+    final_score = models.FloatField(default=0)
+    
+    
+    def update_score(self):
+
+        
+            highest_score_ass = StudentAssessmentAttempt.objects.filter(
+                user=self.user, assessment = self.assessment
+            ).annotate(
+                highest_score=F('score_ass'),
+                
+            ).order_by('-highest_score').first()
+
+            highest_score_quiz =StudentAssessmentAttempt.objects.filter(
+                user=self.user, assessment = self.assessment
+            ).annotate(
+                highest_score=F('score_quiz'),
+                
+            ).order_by('-highest_score').first()
+
+            try:
+                self.final_score_ass= highest_score_ass.score_ass * highest_score_ass.assessment.ass_weights 
+                self.final_score_quiz= highest_score_quiz.score_quiz * highest_score_quiz.assessment.quiz_weights
+                self.final_score = (self.final_score_ass + self.final_score_quiz)* self.assessment.assessment_weights
+                
+                
+            except AttributeError:
+                self.final_score_ass=0
+                self.final_score_quiz=0
+                self.final_score=0
+                
+            self.save()
+    class Meta:
+        verbose_name = 'Student Assessment Score'
+        verbose_name_plural ='Student Assessment Score'
+        db_table ='student_assessment_score'
+
+@receiver([post_save,post_delete],sender = StudentAssessmentAttempt)
+def update_assessment(sender, instance, **kwargs):
+        final,created = AssessmentFinalScore.objects.get_or_create(
+            user = instance.user,
+            assessment = instance.assessment
+        )
+        final.update_score()
+
+
+
+class CourseFinalScore(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    email = models.EmailField(blank=True, null=True, verbose_name="Email Address")  # Optional email for anonymous users
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    score = models.FloatField(blank=True,null=True)
+    date = models.DateField(auto_now_add=True,null=True,blank=True)
+
+    def final_score(self):
+        final_score = AssessmentFinalScore.objects.filter(
+            user=self.user
+        ).aggregate(
+            final_score=models.Sum('final_score')
+        )['final_score']
+        self.score = final_score or 0
+        self.date = timezone.now()
+        self.save()
+
+    class Meta:
+        verbose_name = 'Course Final Score'
+        verbose_name_plural ='Course Final Scores'
+        db_table ='course_final_score'
+
+@receiver([post_save,post_delete],sender = AssessmentFinalScore)
+def update_course(sender, instance, **kwargs):
+    final,created = CourseFinalScore.objects.get_or_create(
+        user = instance.user,
+        course = instance.assessment.course
+    )
+    final.final_score()
+
+    
+
+
+
+
+    
+
+        
+        
+    
+
+    
+        

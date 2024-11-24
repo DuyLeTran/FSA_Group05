@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Course, Enrollment, ReadingMaterial, Completion, Session, SessionCompletion, Topic, Tag, CourseMaterial
+from .models import Course, Enrollment, ReadingMaterial, Completion, Session, SessionCompletion, Topic, Tag, CourseMaterial, UserCourseProgress, MaterialViewingDuration, Transaction
 from .forms import CourseForm, EnrollmentForm, CourseSearchForm, SessionForm, TopicForm, TagForm, ReadingMaterialEditForm
 from module_group.models import ModuleGroup
 from django.contrib.auth.decorators import login_required
@@ -8,23 +8,23 @@ from django.contrib import messages
 import os
 from django.urls import reverse
 from feedback.models import CourseFeedback
-from .forms import ExcelImportForm
 from django.http import HttpResponse
-import openpyxl
-import pandas as pd
-from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from datetime import datetime
 import base64
-import numpy as np
-import fitz
 from django.core.files.storage import default_storage
 import random
-
-
+import re
+import urllib.parse
+import unicodedata
+from django.conf import settings
+from assessments.models import Assessment
 from django.http import HttpResponseRedirect
+from department.models import Department
+from django.utils import timezone
+import shutil
 
 
 @login_required
@@ -49,170 +49,6 @@ def complete_session(request, course_id, session_id):
     return HttpResponseRedirect(reverse('course:course_detail', args=[course.id]))
 
 
-def export_course(request):
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename=lms_course.xlsx'
-
-    workbook = openpyxl.Workbook()
-
-    # Course sheet
-    course_worksheet = workbook.active
-    course_worksheet.title = 'Course'
-    course_columns = ['course_name', 'course_code', 'description', 'creator', 'instructor', 'published', 'prerequisites']
-    course_worksheet.append(course_columns)
-
-    for course in Course.objects.all():
-        prerequisites_list = ', '.join([prerequisite.course_name for prerequisite in course.prerequisites.all()]) or None
-        course_worksheet.append([
-            course.course_name,
-            course.course_code,
-            course.description,
-            course.creator.username if course.creator else None,
-            course.instructor.username if course.instructor else None,
-            course.published,
-            prerequisites_list
-        ])
-
-    # Session sheet
-    session_worksheet = workbook.create_sheet(title='Session')
-    session_columns = ['id', 'course_name', 'session_name', 'session_order']
-    session_worksheet.append(session_columns)
-
-    for session in Session.objects.all():
-        session_worksheet.append([
-            session.id,  # Include session ID
-            session.course.course_name if session.course else None,
-            session.name,
-            session.order
-        ])
-
-    # Reading Material sheet
-    material_worksheet = workbook.create_sheet(title='Reading Material')
-    material_columns = ['session_id', 'title', 'material_type', 'order', 'content']
-    material_worksheet.append(material_columns)
-
-    for material in ReadingMaterial.objects.all():
-        material_worksheet.append([
-            material.session.id if material.session else None,
-            material.title,
-            material.material_type,
-            material.order,
-            material.content  # Depending on how you want to handle HTML content, you might want to sanitize it or limit the length.
-        ])
-
-    # Save the workbook to the response
-    workbook.save(response)
-    return response
-
-
-def to_none_if_nan(value):
-    """Convert value to None if it is NaN."""
-    return None if isinstance(value, float) and np.isnan(value) else value
-
-def import_courses(request):
-    if request.method == 'POST':
-        form = ExcelImportForm(request.POST, request.FILES)
-        if form.is_valid():
-            uploaded_file = request.FILES['excel_file']
-            try:
-                # Read necessary sheets
-                course_df = pd.read_excel(uploaded_file, sheet_name='Course')
-                session_df = pd.read_excel(uploaded_file, sheet_name='Session')
-                material_df = pd.read_excel(uploaded_file, sheet_name='Reading Material')
-
-                # Import courses
-                course_imported = 0
-                course_updated = 0
-
-                for index, row in course_df.iterrows():
-                    course_name = row['course_name']
-                    course_code = row['course_code']
-                    description = row['description']
-                    creator_username = to_none_if_nan(row.get('creator'))
-                    instructor_username = to_none_if_nan(row.get('instructor'))
-                    prerequisites = to_none_if_nan(row.get('prerequisites'))
-
-                    # Fetch User instances
-                    User = get_user_model()
-                    creator = User.objects.filter(username=creator_username).first() if creator_username else None
-                    instructor = User.objects.filter(username=instructor_username).first() if instructor_username else None
-
-                    # Get or create the course
-                    course, created = Course.objects.get_or_create(
-                        course_name=course_name,
-                        defaults={
-                            'course_code': course_code,
-                            'description': description,
-                            'creator': creator,
-                            'instructor': instructor,
-                        }
-                    )
-
-                    if created:
-                        course_imported += 1
-                    else:
-                        course_updated += 1
-
-                    # Handle prerequisites
-                    if prerequisites:
-                        prerequisite_names = [prerequisite.strip() for prerequisite in prerequisites.split(',')]
-                        course.prerequisites.clear()
-                        for prerequisite_name in prerequisite_names:
-                            prerequisite = Course.objects.filter(course_name=prerequisite_name).first()
-                            if prerequisite:
-                                course.prerequisites.add(prerequisite)
-                            else:
-                                messages.warning(request, f"Prerequisite '{prerequisite_name}' does not exist for course '{course_name}'.")
-
-                # Import sessions and create mapping
-                session_mapping = {}
-                for index, row in session_df.iterrows():
-                    course_name = row['course_name']
-                    session_name = row['session_name']
-                    session_order = row['session_order']
-
-                    course = Course.objects.filter(course_name=course_name).first()
-                    if course:
-                        session, _ = Session.objects.get_or_create(
-                            course=course,
-                            name=session_name,
-                            defaults={'order': session_order}
-                        )
-                        session_mapping[row['id']] = session  # Map original ID to the new session instance
-
-                # Import reading materials
-                material_imported = 0
-                for index, row in material_df.iterrows():
-                    original_session_id = row['session_id']  # Use the original session ID from the Excel file
-                    title = row['title']
-                    order = row['order']
-                    content = row['content']  # Assume this is HTML content
-
-                    session = session_mapping.get(original_session_id)  # Fetch the session using the mapping
-                    if session:
-                        ReadingMaterial.objects.get_or_create(
-                            session=session,
-                            title=title,
-                            defaults={
-                                'content': content,
-                                'order': order,
-                            }
-                        )
-                        material_imported += 1
-                    else:
-                        messages.warning(request, f"Session ID '{original_session_id}' does not exist for material '{title}'.")
-
-                messages.success(request, f"{course_imported} courses imported successfully! {course_updated} courses already existed. {material_imported} reading materials imported.")
-            except Exception as e:
-                messages.error(request, f"An error occurred during import: {e}")
-
-            return redirect('course:course_list')
-    else:
-        form = ExcelImportForm()
-
-    return render(request, 'course/course_list.html', {'form': form})
-
-
 @login_required
 def course_enroll(request, pk):
     course = get_object_or_404(Course, pk=pk)
@@ -221,45 +57,166 @@ def course_enroll(request, pk):
     form = EnrollmentForm(request.POST)
 
     if form.is_valid():
-        enrollment = form.save(commit=False)
-
-        # Fetch prerequisite courses from the Course model
         prerequisite_courses = course.prerequisites.all()
 
         # Check if the user is enrolled in all prerequisite courses
         enrolled_courses = Enrollment.objects.filter(
             student=request.user,
-            course__in=prerequisite_courses
+            course__in=prerequisite_courses,
+            is_active=True
         ).values_list('course', flat=True)
 
         if all(prereq.id in enrolled_courses for prereq in prerequisite_courses):
-            enrollment.student = request.user
-            enrollment.course = course
-            enrollment.save()
-            messages.success(request, f'You have been enrolled in {course.course_name}.')
+            if course.price > 0:
+                transaction, created = Transaction.objects.get_or_create(
+                    user=request.user,
+                    course=course,
+                    defaults={'is_successful': False}
+                )
+            else:
+                transaction, created = Transaction.objects.get_or_create(
+                    user=request.user,
+                    course=course,
+                    defaults={'is_successful': True}
+                )
+            if not transaction.is_successful:
+                messages.info(request, 'Transaction required. Please complete the payment to activate enrollment.')
+            else:
+                enrollment, created = Enrollment.objects.get_or_create(
+                    student=request.user,
+                    course=course,
+                    defaults={'is_active': True, 'date_enrolled': timezone.now()}
+                )
+                if not created and not enrollment.is_active:
+                    enrollment.is_active = True
+                    enrollment.date_enrolled = timezone.now()
+                    enrollment.save()
+                messages.success(request, f'You have been enrolled in {course.course_name}.')
         else:
             messages.error(request, 'You do not meet the prerequisites for this course.')
-            return redirect('course:course_list')  # Redirect to course list or another page
-
     return redirect('course:course_detail', pk=course.pk)
 
 
 @login_required
 def course_unenroll(request, pk):
     course = get_object_or_404(Course, pk=pk)
-    enrollment = Enrollment.objects.filter(student=request.user, course=course).first()
+    enrollment = Enrollment.objects.filter(student=request.user, course=course, is_active=True).first()
+    transaction = Transaction.objects.filter(user=request.user, course=course, is_successful=True).first()
 
     if request.method == 'POST':
         # Unenroll the user and redirect to course list with a message
         if enrollment:
-            enrollment.delete()
+            Completion.objects.filter(user=request.user, session__course=course).delete()
+            SessionCompletion.objects.filter(user=request.user, course=course).delete()
+            UserCourseProgress.objects.filter(user=request.user, course=course).delete()
+            enrollment.is_active = False
+            enrollment.date_unenrolled = timezone.now()
+            enrollment.save()
+            transaction.is_successful = False
+            transaction.save()
             messages.success(request, f'You have been unenrolled from {course.course_name}.')
         return redirect('course:course_list')
 
     # Render confirmation page
     return render(request, 'course/course_unenroll.html', {'course': course})
 
+
+def duplicate_course(original_course):
+    # Create a new instance for the duplicated course
+    duplicated_course = Course(
+        course_name=original_course.course_name,
+        course_code=original_course.course_code,
+        instructor=original_course.instructor,
+        description=original_course.description,
+        published=False,
+    )
+
+    # Ensure unique course_name
+    original_name = original_course.course_name
+    counter = 1
+    while Course.objects.filter(course_name=f"{original_name} - Copy" + (f" ({counter})" if counter > 1 else "")).exists():
+        counter += 1
+    duplicated_course.course_name = f"{original_name} - Copy" + (f" ({counter})" if counter > 1 else "")
+
+    # Ensure unique course_code
+    original_code = original_course.course_code or ""  # Handle cases where course_code is None
+    code_counter = 1
+    while Course.objects.filter(course_code=f"{original_code}{code_counter}").exists():
+        code_counter += 1
+    duplicated_course.course_code = f"{original_code}{code_counter}"
+
+    duplicated_course.save()  # Save the duplicated course
+
+    # Duplicate sessions related to the duplicated course
+    for session in original_course.sessions.all():
+        # Create a new session for the duplicated course
+        duplicated_session = Session(name=session.name, order=session.order)
+        duplicated_session.pk = None  # Create a new session
+        duplicated_session.course = duplicated_course  # Associate with the duplicated course
+        duplicated_session.save()
+
+        # Duplicate materials for the duplicated session
+        for material in session.materials.all():
+            if material.material_type == 'assessments':
+                continue
+
+            # Get the ReadingMaterial associated with the current CourseMaterial
+            material_id = material.material_id
+            reading_material = ReadingMaterial.objects.get(id=material_id)
+
+            # Check if the content includes an iframe with a file URL
+            if '<iframe' in reading_material.content and 'src="' in reading_material.content:
+                start_index = reading_material.content.find('src="') + len('src="')
+                end_index = reading_material.content.find('#toolbar=0"', start_index)
+                if end_index > start_index:
+                    file_url = reading_material.content[start_index:end_index]
+
+                    # Copy the file to the new directory
+                    file_path = file_url.lstrip('/media')
+                    original_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+                    new_directory = os.path.join(settings.MEDIA_ROOT, 'course_pdf', duplicated_course.course_code)
+                    os.makedirs(new_directory, exist_ok=True)
+                    new_file_path = os.path.join(new_directory, os.path.basename(file_url))
+
+                    if os.path.exists(original_file_path):
+                        shutil.copy2(original_file_path, new_file_path)
+                    else:
+                        print("No file path with this path:", original_file_path)
+
+                    # Update the content to use the new file path
+                    new_file_url = os.path.join('/media/course_pdf', duplicated_course.course_code, os.path.basename(file_url))
+                    reading_material.content = reading_material.content.replace(file_url, new_file_url)
+
+            # Duplicate the ReadingMaterial
+            duplicated_rm = ReadingMaterial.objects.create(
+                content=reading_material.content,  # Updated content
+                title=reading_material.title,      # Copy the title
+            )
+
+            # Create a new CourseMaterial for the duplicated session
+            duplicated_material = CourseMaterial.objects.create(
+                session=duplicated_session,
+                material_id=duplicated_rm.id,
+                material_type=material.material_type,
+                order=material.order,
+                title=material.title,
+            )
+            duplicated_material.save()
+
+            # Link the ReadingMaterial to the CourseMaterial
+            duplicated_rm.material = duplicated_material
+            duplicated_rm.save()
+
+    # Copy tags and prerequisites
+    duplicated_course.tags.set(original_course.tags.all())
+    duplicated_course.prerequisites.set(original_course.prerequisites.all())
+
+    return duplicated_course
+
+
 def course_list(request):
+    user_departments = Department.objects.filter(users=request.user)
+
     if request.user.is_superuser:
         # Superuser can see all courses
         courses = Course.objects.all()
@@ -269,12 +226,26 @@ def course_list(request):
             Q(published=True) | Q(instructor=request.user)
         )
     else:
-        courses = Course.objects.filter(published=True)  # Other users see only published courses
+        # courses = Course.objects.filter(published=True)  # Other users see only published courses
+        department_courses = Course.objects.filter(department__in=user_departments, published=True)
+        no_department_courses = Course.objects.filter(department__isnull=True, published=True)
+        courses = department_courses | no_department_courses  # Combine both querysets
+        courses = courses.distinct()
+
+        # Filter out courses with no materials
+        courses = [course for course in courses if course.sessions.filter(materials__isnull=False).exists()]
 
     module_groups = ModuleGroup.objects.all()
     enrollments = Enrollment.objects.filter(student=request.user)
     enrolled_courses = {enrollment.course.id for enrollment in enrollments}
     is_instructor = Course.objects.filter(instructor=request.user).exists()
+
+    duplicate_course_id = request.GET.get('duplicate_course_id')
+    if duplicate_course_id:
+        original_course = get_object_or_404(Course, id=duplicate_course_id)
+        duplicated_course = duplicate_course(original_course)
+        messages.success(request, f"The course '{duplicated_course.course_name}' has been duplicated successfully.")
+        return redirect('course:course_list')
 
     # Calculate completion percentage for each course
     for course in courses:
@@ -334,6 +305,9 @@ def course_add(request):
             if 'image' in request.FILES:
                 course.image = request.FILES['image']
 
+            course.price = course_form.cleaned_data['price']
+            course.discount = course_form.cleaned_data['discount']
+
             course.save()
 
             # Handle prerequisite courses
@@ -372,13 +346,11 @@ def course_add(request):
         'all_courses': all_courses,
     })
 
-# course/views.py
-def course_edit(request, pk):
+
+def course_edit_detail(request, pk):
     course = get_object_or_404(Course, pk=pk)
     all_courses = Course.objects.exclude(id=course.id)
     sessions = Session.objects.filter(course=course).order_by('order')
-
-    # Get the first session ID if there are sessions, otherwise set it to None
     first_session_id = sessions.first().id if sessions.exists() else None
 
     if request.method == 'POST':
@@ -388,138 +360,174 @@ def course_edit(request, pk):
             course = course_form.save(commit=False)
             course.creator = request.user
 
-            # Debug: Check if an image has been uploaded
+            # Handle image upload and deletion
             if 'image' in request.FILES:
                 print("Image uploaded:", request.FILES['image'])
                 new_image = request.FILES['image']
 
-                # Only delete the old image after saving the new one
                 if course.image and course.image.name != new_image.name:
                     print("Old image exists, deleting:", course.image.path)
-                    default_storage.delete(course.image.path)  # Delete from storage
-                    course.image.delete()  # Delete the model reference
+                    default_storage.delete(course.image.path)
+                    course.image.delete()
 
-                course.image = new_image  # Assign the new image to the course
-                course.save()  # Save the course with the new image
+                course.image = new_image
+                course.save()
                 print("New image saved.")
 
-                # Check for delete image request
             elif 'action' in request.POST and request.POST['action'] == 'delete_image':
                 print("Delete image button clicked.")
                 if course.image:
                     print("Deleting old image:", course.image.path)
-                    default_storage.delete(course.image.path)  # Delete from storage
-                    course.image.delete()  # Remove the model reference
+                    default_storage.delete(course.image.path)
+                    course.image.delete()
 
-            course.save()  # Save after deletion
+            course.save()
             print("Image deleted successfully.")
 
-            # Handle tag deletion
-            current_tags = list(course.tags.all())
-            for tag in current_tags:
-                if request.POST.get(f'delete_tag_{tag.id}'):
-                    print(f"Deleting tag: {tag.name}")
-                    course.tags.remove(tag)
-
-            # Handle adding new tags
-            tag_ids = request.POST.getlist('tags')
-            print("Retrieved tag_ids from POST:", tag_ids)
-            for tag_id in tag_ids:
-                if tag_id:
-                    print("Processing tag_id:", tag_id)
-                    tag = Tag.objects.get(id=tag_id)
-                    course.tags.add(tag)
-
-            # Handle prerequisite deletion
+            # Handle prerequisite deletion and addition
             current_prerequisites = request.POST.get('deleted_prerequisite_ids')
             if current_prerequisites:
                 current_prerequisites = current_prerequisites.split(',')
                 for prereq_id in current_prerequisites:
-                    if prereq_id:  # Ensure there's a value to work with
+                    if prereq_id:  # Đảm bảo có giá trị để xử lý
                         try:
-                            # Convert the ID to an integer
-                            prereq_id = int(prereq_id)
-                            # Attempt to get the prerequisite from the course
+                            prereq_id = int(prereq_id)  # Chuyển ID sang kiểu int
                             prereq = course.prerequisites.get(id=prereq_id)
-                            course.prerequisites.remove(prereq)
+                            course.prerequisites.remove(prereq)  # Xóa prerequisite khỏi khóa học
                             print(f"Deleted prerequisite: {prereq.course_name}")
                         except course.prerequisites.DoesNotExist:
-                            print(f"Prerequisite with ID {prereq_id} does not exist.")
+                            print(f"Prerequisite với ID {prereq_id} does not exist.")
 
-            # Handle adding new prerequisites
+            # Xử lý thêm prerequisites mới
             prerequisite_ids = request.POST.getlist('prerequisite_courses')
             for prerequisite_id in prerequisite_ids:
                 if prerequisite_id:
                     prerequisite_course = Course.objects.get(id=prerequisite_id)
                     print(f"Adding prerequisite: {prerequisite_course.course_name}")
-                    course.prerequisites.add(prerequisite_course)
+                    course.prerequisites.add(prerequisite_course)  # Thêm prerequisite vào khóa học
 
-            # Handle existing sessions update
-            session_ids = request.POST.getlist('session_ids')
-            session_names = request.POST.getlist('session_names')
-            for session_id, session_name in zip(session_ids, session_names):
-                if session_id:  # Only process if session_id is not empty
-                    print(f"Updating session {session_id} name to: {session_name}")
-                    session = Session.objects.get(id=session_id)
-                    session.name = session_name
-                    session.save()
-
-            # Handle adding new sessions
-            new_session_names = request.POST.getlist('new_session_names')
-            for session_name in new_session_names:
-                if session_name:
-                    print(f"Adding new session: {session_name}")
-                    Session.objects.create(course=course, name=session_name, order=course.sessions.count() + 1)
-
-            # Handle session deletion
-            delete_session_ids = request.POST.get('delete_session_ids')
-            if delete_session_ids:
-                delete_session_ids = delete_session_ids.split(',')
-                for session_id in delete_session_ids:
-                    if session_id:
-                        Session.objects.filter(id=session_id).delete()
-
-            # Handle reordering of sessions
-            if 'session_order' in request.POST:
-                session_order = request.POST.get('session_order')
-                if session_order:
-                    session_ids = session_order.split(',')
-                    for order, session_id in enumerate(session_ids):
-                        print("Session Order:", session_order)
-                        print("Parsed Session IDs:", session_ids)
-                        Session.objects.filter(id=session_id).update(order=order)
-
-            messages.success(request, 'Course updated successfully.')
-            return redirect('course:course_edit', pk=course.pk)
-
-            messages.success(request, 'course updated successfully.')
-            return redirect('course:course_edit', pk=course.pk)
+            messages.success(request, 'Course details updated successfully.')
+            return redirect('course:course_edit_detail', pk=course.pk)
         else:
             print("Form is not valid")
             print(course_form.errors)
-            messages.error(request, 'There was an error updating the course. Please check the form.')
+            messages.error(request, 'There was an error updating the course details. Please check the form.')
 
     else:
         course_form = CourseForm(instance=course)
         prerequisites = course.prerequisites.all()
         sessions = course.sessions.all()
-        topics = Topic.objects.all()
-        tags = Tag.objects.all()
 
-    return render(request, 'course/edit_form.html', {
+    return render(request, 'course/course_edit_detail.html', {
         'course_form': course_form,
         'course': course,
-        'prerequisites': prerequisites,
         'all_courses': all_courses,
-        'sessions': sessions.order_by('order'),  # Pass sessions to template
-        'topics': topics,
+        'prerequisites': prerequisites,
+        'sessions': sessions,
+        'first_session_id': first_session_id,
+    })
+
+def course_edit_session(request, pk):
+    course = get_object_or_404(Course, pk=pk)
+    sessions = Session.objects.filter(course=course).order_by('order')
+    first_session_id = sessions.first().id if sessions.exists() else None
+
+    if request.method == 'POST':
+        # Update existing sessions
+        session_ids = request.POST.getlist('session_ids')
+        session_names = request.POST.getlist('session_names')
+        for session_id, session_name in zip(session_ids, session_names):
+            if session_id:
+                print(f"Updating session {session_id} name to: {session_name}")
+                session = Session.objects.get(id=session_id)
+                session.name = session_name
+                session.save()
+
+        # Add new sessions
+        new_session_names = request.POST.getlist('new_session_names')
+        for session_name in new_session_names:
+            if session_name:
+                print(f"Adding new session: {session_name}")
+                Session.objects.create(course=course, name=session_name, order=course.sessions.count() + 1)
+
+        # Delete sessions
+        delete_session_ids = request.POST.get('delete_session_ids')
+        if delete_session_ids:
+            delete_session_ids = delete_session_ids.split(',')
+            for session_id in delete_session_ids:
+                if session_id:
+                    Session.objects.filter(id=session_id).delete()
+
+        # Reorder sessions
+        if 'session_order' in request.POST:
+            session_order = request.POST.get('session_order')
+            if session_order:
+                session_ids = session_order.split(',')
+                for order, session_id in enumerate(session_ids):
+                    print("Session Order:", session_order)
+                    print("Parsed Session IDs:", session_ids)
+                    Session.objects.filter(id=session_id).update(order=order)
+
+        messages.success(request, 'Sessions updated successfully.')
+        return redirect('course:course_edit_session', pk=course.pk)
+
+    else:
+        sessions = course.sessions.all()
+
+    return render(request, 'course/course_edit_session.html', {
+        'course': course,
+        'sessions': sessions.order_by('order'),
+        'first_session_id': first_session_id,
+    })
+
+
+def course_edit_topic_tags(request, pk):
+    course = get_object_or_404(Course, pk=pk)
+    sessions = Session.objects.filter(course=course).order_by('order')
+    first_session_id = sessions.first().id if sessions.exists() else None
+
+    if request.method == 'POST':
+        # Delete tags
+        current_tags = list(course.tags.all())
+        for tag in current_tags:
+            if request.POST.get(f'delete_tag_{tag.id}'):
+                course.tags.remove(tag)
+
+        # Add new tags
+        tag_ids = request.POST.getlist('tags')
+        print("Retrieved tag_ids from POST:", tag_ids)
+        for tag_id in tag_ids:
+            if tag_id:
+                print("Processing tag_id:", tag_id)
+                tag = Tag.objects.get(id=tag_id)
+                course.tags.add(tag)
+
+        messages.success(request, 'Tags updated successfully.')
+        return redirect('course:course_edit_topic_tags', pk=course.pk)
+    else:
+        tags = Tag.objects.all()
+        topics = Topic.objects.all()
+        sessions = course.sessions.all()
+
+    return render(request, 'course/course_edit_topic_tags.html', {
+        'course': course,
         'tags': tags,
+        'topics': topics,
+        'sessions': sessions,
         'first_session_id': first_session_id,
     })
 
 def course_delete(request, pk):
     course = get_object_or_404(Course, pk=pk)
     if request.method == 'POST':
+        # Get the path to the folder
+        folder_path = os.path.join(settings.MEDIA_ROOT, 'course_pdf', course.course_code)
+
+        # Check if the folder exists and delete it
+        if os.path.exists(folder_path) and os.path.isdir(folder_path):
+            shutil.rmtree(folder_path)
+        else:
+            print("No path exist:", folder_path)
         course.delete()
         return redirect('course:course_list')
     return render(request, 'course/course_confirm_delete.html', {'course': course})
@@ -529,9 +537,19 @@ def course_detail(request, pk):
     # Get the course based on the primary key (pk)
     course = get_object_or_404(Course, pk=pk)
 
+    if request.user.is_superuser:
+        can_enroll = True
+    else:
+        user_departments = Department.objects.filter(users=request.user)
+        course_departments = Department.objects.filter(courses=course)
+
+        can_enroll = (
+            course_departments.filter(id__in=user_departments).exists() or
+            not course_departments.exists()
+        )
     # Get related documents and videos
-    is_enrolled = Enrollment.objects.filter(student=request.user, course=course).exists()
-    users_enrolled_count = Enrollment.objects.filter(course=course).count()
+    is_enrolled = Enrollment.objects.filter(student=request.user, course=course, is_active=True).exists()
+    users_enrolled_count = Enrollment.objects.filter(course=course, is_active=True).count()
 
     # Get all feedback related to the course
     feedbacks = CourseFeedback.objects.filter(course=course)
@@ -596,6 +614,7 @@ def course_detail(request, pk):
         'user_type': user_type,
         'user_progress': user_progress,
         'random_tags': random_tags,
+        'can_enroll': can_enroll,
     }
 
     return render(request, 'course/course_detail.html', context)
@@ -649,41 +668,43 @@ def course_search(request):
 def reorder_course_materials(request, pk, session_id):
     # Fetch the course
     course = get_object_or_404(Course, pk=pk)
-
     # Fetch all sessions related to the course
     sessions = Session.objects.filter(course=course).order_by('order')
+    selected_session_id = session_id
+    if request.method == 'POST':
+        selected_session_id = request.POST.get('session_id')
 
-    # Fetch materials for the selected session, defaulting to the first session
-    selected_session_id = request.POST.get('session_id') or session_id
+    # Fetch the selected session (or default to the first session if none is selected)
     session = get_object_or_404(Session, id=selected_session_id)
+
+    # Fetch materials for the selected session, ordered by the 'order' field
     materials = CourseMaterial.objects.filter(session=session).order_by('order')
 
-    if request.method == 'POST':
+    if request.method == 'POST' and 'order' in request.POST:
         # Check if the request is for reordering materials
-        if 'order' in request.POST:
-            for material in materials:
-                new_order = request.POST.get(f'order_{material.id}')
-                if new_order:
-                    material.order = int(new_order)  # Convert to integer
-                    material.save()
+        for material in materials:
+            new_order = request.POST.get(f'order_{material.id}')
+            if new_order:
+                material.order = int(new_order)  # Convert to integer
+                material.save()
+        materials = CourseMaterial.objects.filter(session=session).order_by('order')
+        # After updating, send a success message and reload the page with the updated order
+        success_message = "Order updated successfully!"
+        return render(request, 'material/reorder_course_material.html', {
+            'course': course,
+            'sessions': sessions,
+            'materials': materials,
+            'selected_session_id': selected_session_id,  # Ensure selected session is retained
+            'success_message': success_message,
+        })
 
-            success_message = "Order updated successfully!"
-            return render(request, 'material/reorder_course_material.html', {
-                'course': course,
-                'sessions': sessions,
-                'materials': materials,
-                'selected_session_id': selected_session_id,
-                'success_message': success_message,
-            })
-
-    # Pass the course, sessions, and materials to the template
+    # If the form was not submitted or POST method is not used, render the page with existing data
     return render(request, 'material/reorder_course_material.html', {
         'course': course,
         'sessions': sessions,
         'materials': materials,
-        'selected_session_id': selected_session_id,
+        'selected_session_id': selected_session_id,  # Retain the session
     })
-
 
 def reading_material_detail(request, id):
     reading_material = get_object_or_404(ReadingMaterial, id=id)
@@ -700,49 +721,53 @@ def reading_material_detail(request, id):
     return render(request, 'material/reading_material_detail.html', {'reading_material': reading_material})
 
 
-def edit_reading_material(request, pk, session_id, reading_material_id):
-    # Retrieve the course
-    course = get_object_or_404(Course, pk=pk)
-    # Retrieve all sessions for the course
-    sessions = Session.objects.filter(course=course)
+def start_viewing(user, material, request):
+    # Get the last viewed material from the session
+    last_viewed_material = request.session.get('last_viewed_material', None)
 
-    # Get the selected session
-    selected_session_id = session_id  # Use session_id parameter
-    session = get_object_or_404(Session, id=selected_session_id)
+    # Only increment come_back if the material being viewed is different
+    # from the previously viewed material stored in the session
+    if last_viewed_material != str(material.id):
+        # The user is viewing a new material, so increment come_back
+        viewing_duration, created = MaterialViewingDuration.objects.get_or_create(
+            user=user,
+            material=material,
+            defaults={'start_time': timezone.now()}
+        )
 
-    # Retrieve the reading material to edit
-    reading_material = get_object_or_404(ReadingMaterial, id=reading_material_id)
+        if not created:
+            viewing_duration.start_time = timezone.now()
 
-    # Retrieve the associated CourseMaterial instance
-    course_material = get_object_or_404(CourseMaterial, material_id=reading_material_id, session=session)
+        # Increment come_back since the material is being viewed from a different one
+            viewing_duration.come_back += 1
+        viewing_duration.save()
 
-    if request.method == 'POST':
-        form = ReadingMaterialEditForm(request.POST, instance=reading_material)
-        selected_material_type = request.POST.get('material_type')
-
-        if form.is_valid():
-            reading_material = form.save()
-            # Update the material_type if it has been changed
-            if selected_material_type and selected_material_type != course_material.material_type:
-                course_material.material_type = selected_material_type
-                course_material.save()
-
-            messages.success(request, 'Reading material updated successfully.')
-            return redirect('course:course_content_edit', pk=pk, session_id=session_id)
+        # Store the current material id in session to track the last viewed material
+        request.session['last_viewed_material'] = str(material.id)
     else:
-        form = ReadingMaterialEditForm(instance=reading_material)
+        # Material is being reloaded, do not increment come_back
+        print("Reloading the same material, no increment on come_back.")
 
-    context = {
-        'reading_material': reading_material,
-        'form': form,
-        'course': course,
-        'sessions': sessions,
-        'session': session,
-        'material_types': CourseMaterial.MATERIAL_TYPE_CHOICES,  # Pass material type choices to the template
-        'current_material_type': course_material.material_type,  # Current material type for default selection
-    }
+def end_viewing(user, material):
+    try:
+        # Get the MaterialViewingDuration object
+        viewing_duration = MaterialViewingDuration.objects.get(user=user, material=material)
 
-    return render(request, 'material/edit_reading_material.html', context)
+        # Update the end_time
+        viewing_duration.end_time = timezone.now()
+
+        # Calculate the time spent on this viewing session
+        if viewing_duration.start_time:
+            time_spent_now = viewing_duration.end_time - viewing_duration.start_time
+
+            # Add the new time spent to the total time_spent
+            viewing_duration.time_spent += time_spent_now
+
+        # Save the updated object
+        viewing_duration.save()
+    except MaterialViewingDuration.DoesNotExist:
+        # Handle the case where the object does not exist
+        pass
 
 @login_required
 def course_content(request, pk, session_id):
@@ -761,22 +786,39 @@ def course_content(request, pk, session_id):
     current_material = None
     if file_id and file_type:
         try:
-            current_material = CourseMaterial.objects.get(id=file_id, material_type=file_type, session=current_session)
+            current_material = CourseMaterial.objects.get(id=file_id, material_type=file_type,
+                                                          session=current_session)
         except CourseMaterial.DoesNotExist:
             current_material = materials.first() if materials.exists() else None
     else:
         current_material = materials.first() if materials.exists() else None
 
+    if current_material:
+        # If the user has navigated away from a previous material, save the duration
+        previous_material_id = request.session.get('previous_material_id')
+        if previous_material_id and int(previous_material_id) != current_material.id:
+            try:
+                previous_material = CourseMaterial.objects.get(id=previous_material_id)
+                end_viewing(request.user, previous_material)
+            except CourseMaterial.DoesNotExist:
+                pass
+
+        # Start viewing the current material
+        start_viewing(request.user, current_material, request)
+        request.session['previous_material_id'] = current_material.id
+
     next_material = materials.filter(order__gt=current_material.order).first() if current_material else None
     next_session = None
 
     if not next_material:
-        next_session = Session.objects.filter(course=course, order__gt=current_session.order).order_by('order').first()
+        next_session = Session.objects.filter(course=course, order__gt=current_session.order).order_by(
+            'order').first()
         if next_session:
             next_material = CourseMaterial.objects.filter(session=next_session).order_by('order').first()
 
     content_type = None
     preview_content = None
+    assessment = None
 
     if current_material:
         if current_material.material_type == 'assignments':
@@ -795,6 +837,10 @@ def course_content(request, pk, session_id):
             reading = ReadingMaterial.objects.get(material_id=current_material.id)
             preview_content = reading.content
             content_type = 'references'
+        elif current_material.material_type == 'assessments':
+            assessment = Assessment.objects.get(id=current_material.material_id)
+            preview_content = None
+            content_type = 'assessments'
 
     completion_status = Completion.objects.filter(
         session=current_session,
@@ -832,11 +878,11 @@ def course_content(request, pk, session_id):
         'completion_percent': completion_percent,
         'certificate_url': certificate_url,
         'next_session': next_session,
-        'module_groups': module_groups
+        'assessment': assessment,
+        'modules_groups': module_groups
     }
 
     return render(request, 'course/course_content.html', context)
-
 
 @require_POST
 @login_required
@@ -848,6 +894,7 @@ def toggle_completion(request, pk):
     session = material.session
 
     completion, created = Completion.objects.get_or_create(
+        
         session=session,
         material=material,
         user=request.user,
@@ -890,6 +937,63 @@ def toggle_completion(request, pk):
         'next_session_id': next_session_id
     })
 # In course/views.py
+def remove_accents(input_str):
+    nfkd_form = unicodedata.normalize('NFKD', input_str)
+    return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+
+
+def edit_reading_material(request, pk, session_id, reading_material_id):
+    # Retrieve the course
+    course = get_object_or_404(Course, pk=pk)
+    # Retrieve all sessions for the course
+    sessions = Session.objects.filter(course=course)
+
+    # Get the selected session
+    selected_session_id = session_id  # Use session_id parameter
+    session = get_object_or_404(Session, id=selected_session_id)
+
+    # Retrieve the reading material to edit
+    reading_material = get_object_or_404(ReadingMaterial, id=reading_material_id)
+
+    # Retrieve the associated CourseMaterial instance
+    course_material = get_object_or_404(CourseMaterial, material_id=reading_material_id, session=session)
+    # 14/11/2024
+    materials = CourseMaterial.objects.filter(session=session).order_by('order')
+    reading_materials = ReadingMaterial.objects.filter(material__in=materials).order_by('material__order')
+
+    if request.method == 'POST':
+        form = ReadingMaterialEditForm(request.POST, instance=reading_material)
+        selected_material_type = request.POST.get('material_type')
+
+        if form.is_valid():
+            reading_material = form.save()
+            course_material = CourseMaterial.objects.get(material_id=reading_material.id)
+            course_material.title = reading_material.title
+            # Update the material_type if it has been changed
+            if selected_material_type and selected_material_type != course_material.material_type:
+                course_material.material_type = selected_material_type
+                course_material.save()
+            course_material.save()
+
+            messages.success(request, 'Reading material updated successfully.')
+            return redirect('course:course_content_edit', pk=pk, session_id=session_id)
+    else:
+        form = ReadingMaterialEditForm(instance=reading_material)
+
+    context = {
+        'reading_material': reading_material,
+        'form': form,
+        'course': course,
+        'sessions': sessions,
+        'session': session,
+        'material_types': CourseMaterial.MATERIAL_TYPE_CHOICES,  # Pass material type choices to the template
+        'current_material_type': course_material.material_type,  # Current material type for default selection
+        'reading_materials': reading_materials,  # Add this line to include reading_materials
+
+    }
+
+    return render(request, 'material/edit_reading_material.html', context)
+
 
 @login_required
 def course_content_edit(request, pk, session_id):
@@ -901,39 +1005,105 @@ def course_content_edit(request, pk, session_id):
     session = get_object_or_404(Session, id=selected_session_id)
 
     # Fetch materials associated with the selected session
-    materials = CourseMaterial.objects.filter(session=session)
-    reading_materials = ReadingMaterial.objects.filter(material__in=materials)
+    materials = CourseMaterial.objects.filter(session=session).order_by('order')
+    reading_materials = ReadingMaterial.objects.filter(material__in=materials).order_by('material__order')
+    current_assessments = CourseMaterial.objects.filter(session=session, material_type='assessments')
+    assessments = Assessment.objects.filter(course=course)
+
+    selected_assessment_ids = request.POST.getlist('assessment_id[]') if request.method == 'POST' else []
+    # selected_assessment = Assessment.objects.filter(id=selected_assessment_id).first() if selected_assessment_id else None
+
+    # Get current session's assessments
+    current_assessment_ids = set(current_assessments.values_list('material_id', flat=True))
+
+    # Filter out already selected assessments from the available assessments
+    available_assessments = Assessment.objects.filter(course=course).exclude(id__in=current_assessment_ids)
+
+    editing_material = None
+    if request.GET.get('edit'):
+        reading_material_id = request.GET['edit']
+        editing_material = get_object_or_404(ReadingMaterial.objects.exclude(material__material_type='assessments'),id=reading_material_id)
+        editing_course_material = get_object_or_404(CourseMaterial, material_id=reading_material_id)
 
     if request.method == 'POST':
-        # Process reading materials for deletion using marked_for_deletion
-        marked_ids = request.POST.get('marked_for_deletion', '').split(',')
-        for material_id in marked_ids:
-            if material_id:  # Ensure the ID is not empty
+        if editing_material is not None:
+            edit_reading_material_titles = request.POST.getlist('edit_reading_material_title[]')
+            edit_reading_material_contents = request.POST.getlist('edit_reading_material_content[]')
+            edit_reading_material_types = request.POST.getlist('edit_reading_material_type[]')
+
+            for title, content, material_type in zip(edit_reading_material_titles, edit_reading_material_contents,
+                                                     edit_reading_material_types):
+                if title and content and material_type:
+                    editing_material.title = title
+                    editing_material.content = content
+                    editing_material.save()
+                    editing_course_material.title = title
+                    if material_type and material_type != editing_course_material.material_type:
+                        editing_course_material.material_type = material_type
+                        editing_course_material.save()
+                    editing_course_material.save()
+
+        # Process materials for deletion using marked_for_deletion with material_type
+        marked_items = request.POST.get('marked_for_deletion', '').split(',')
+        for item in marked_items:
+            if item:  # Ensure item is not empty
                 try:
-                    reading_material = ReadingMaterial.objects.get(id=material_id)
-                    reading_material.delete()
-                except ReadingMaterial.DoesNotExist:
-                    continue  # Handle if the material doesn't exist
+                    material_id, material_type = item.split(':')
+                    course_material = CourseMaterial.objects.get(material_id=material_id, material_type=material_type)
+
+                    # Delete associated ReadingMaterial if it's not an assessment
+                    if course_material.material_type != 'assessments':
+                        reading_material = ReadingMaterial.objects.get(id=material_id)
+                        if reading_material.content:
+                            # Attempt to extract the file URL from the iframe content
+                            match = re.search(r'src="(/media/course_pdf/.*?)"', reading_material.content)
+                            if match:
+                                file_url = match.group(1)  # Extract the URL part from the 'src' attribute
+                                # Decode the URL-encoded characters (e.g., %CC%82) to handle special characters
+                                decoded_file_url = urllib.parse.unquote(file_url)  # Decode the URL
+                                decoded_file_url = decoded_file_url.split('#')[0]
+                                file_path = decoded_file_url.lstrip('/media')  # Remove leading slash to get the actual file path
+                                # Construct the full file path
+                                file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+                                if default_storage.exists(file_path):
+                                    default_storage.delete(file_path)
+                                else:
+                                    print(f"File does not exist: {file_path}")
+                            else:
+                                print("No file URL found in content.")
+
+                            # Delete the ReadingMaterial object
+                        reading_material.delete()
+
+                    course_material.delete()
+                except (ReadingMaterial.DoesNotExist, CourseMaterial.DoesNotExist, ValueError):
+                    continue  # Skip if material doesn't exist or if there's a ValueError in item split
 
         # Handle uploaded PDF
         if 'uploaded_material_file[]' in request.FILES and 'uploaded_material_type[]' in request.POST:
             uploaded_files = request.FILES.getlist('uploaded_material_file[]')
-            one_material_type = request.POST.get('uploaded_material_type[]')  # Get the selected material type (single value)
+            one_material_type = request.POST.get(
+                'uploaded_material_type[]')  # Get the selected material type (single value)
             material_types = [one_material_type] * len(uploaded_files)
 
             for uploaded_file, material_type in zip(uploaded_files, material_types):
-                file_name = os.path.splitext(uploaded_file.name)[0]
-                # Read the PDF and extract text
-                extracted_content = ""
-                with fitz.open(stream=uploaded_file.read(), filetype='pdf') as pdf:
-                    for page in pdf:
-                        extracted_content += page.get_text("html")  # Extract as HTML
+                file_name = remove_accents(uploaded_file.name)
+                file_name = file_name.replace(' ', '-').replace('_', '-')
+                course_code = course.course_code
+                course_code = course_code.replace(' ', '-').replace('_', '-')
+                file_path = default_storage.save(f'course_pdf/{course_code}/{file_name}', uploaded_file)
+                file_url = default_storage.url(file_path)
 
-                if extracted_content.strip():
+                iframe_html = f'<iframe src="{file_url}#toolbar=0" style="border: none; width: 100%; height: 590px;"></iframe>'
+
+                if iframe_html:
+                    # Create and save reading material with HTML content containing base64 images
                     reading_material = ReadingMaterial.objects.create(
                         title=file_name,  # Use the uploaded file name as the title
-                        content=extracted_content,
+                        content=iframe_html,  # Save HTML with embedded images
                     )
+
+                    # Create CourseMaterial linking to the reading material
                     course_material = CourseMaterial.objects.create(
                         session=session,
                         material_id=reading_material.id,
@@ -964,6 +1134,18 @@ def course_content_edit(request, pk, session_id):
                 reading_material.material = course_material
                 reading_material.save()
 
+        # Save selected assessment
+        for assessment_id in selected_assessment_ids:
+            assessment = Assessment.objects.filter(id=assessment_id).first()
+            if assessment:
+                CourseMaterial.objects.create(
+                    session=session,
+                    material_id=assessment.id,
+                    material_type='assessments',
+                    title=assessment.title,
+                    order=CourseMaterial.objects.filter(session=session).count() + 1
+                )
+
         messages.success(request, 'Course content updated successfully.')
         return redirect(reverse('course:course_content_edit', args=[course.pk, session.id]))
 
@@ -974,6 +1156,10 @@ def course_content_edit(request, pk, session_id):
         'selected_session': session,
         'reading_materials': reading_materials,
         'material_types': dict(CourseMaterial.MATERIAL_TYPE_CHOICES),
+        'assessments': available_assessments,  # Changed to available_assessments
+        'selected_assessment_ids': selected_assessment_ids,
+        'current_assessments': current_assessments,
+        'editing_material': editing_material,
     }
 
     return render(request, 'material/course_content_edit.html', context)
@@ -1032,16 +1218,12 @@ def topic_tag_list(request):
 
 def topic_add(request):
     if request.method == 'POST':
-        # Khởi tạo form chủ yếu để hiển thị lại nếu có lỗi
         topic_form = TopicForm(request.POST or None)
-
-        # Lấy dữ liệu từ request để thêm nhiều topics
-        topic_names = request.POST.getlist('topics[]')  # danh sách tên topics từ form
+        topic_names = request.POST.getlist('topics[]')
 
         if topic_names:
-            # Lặp qua danh sách tên topics và thêm từng topic vào DB
             for name in topic_names:
-                if name.strip():  # kiểm tra tên topic không rỗng
+                if name.strip():
                     Topic.objects.create(name=name.strip())
             messages.success(request, 'Topics added successfully.')
             return redirect('course:topic_tag_list')
@@ -1055,18 +1237,24 @@ def topic_add(request):
         'topic_form': topic_form,
     })
 
-
 def topic_edit(request, pk):
     topic = get_object_or_404(Topic, pk=pk)
+
     if request.method == 'POST':
-        form = TopicForm(request.POST, instance=topic)
+        form = TopicForm(request.POST, instance=topic)  # Pass the existing topic instance for editing
         if form.is_valid():
-            form.save()
+            form.save()  # Save the updated topic
             messages.success(request, 'Topic updated successfully.')
             return redirect('course:topic_tag_list')
+        else:
+            messages.error(request, 'There was an error updating the topic.')
     else:
-        form = TopicForm(instance=topic)
-    return render(request, 'topic-tag/topic_form.html', {'form': form, 'title': 'Edit Topic'})
+        form = TopicForm(instance=topic)  # Pre-populate the form with the existing topic
+
+    return render(request, 'topic-tag/topic_edit.html', {
+        'form': form,
+        'title': 'Edit Topic',  # Title is set to "Edit Topic" for this view
+    })
 
 def topic_delete(request, pk):
     topic = get_object_or_404(Topic, pk=pk)
@@ -1107,15 +1295,25 @@ def tag_add(request):
 
 def tag_edit(request, pk):
     tag = get_object_or_404(Tag, pk=pk)
+    topics = Topic.objects.all()  # Get all available topics
+
     if request.method == 'POST':
+        # Process the form (you can handle saving new tags here if needed)
         form = TagForm(request.POST, instance=tag)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tag updated successfully.')
             return redirect('course:topic_tag_list')
     else:
+        # Pass the existing tag and available topics to the template
         form = TagForm(instance=tag)
-    return render(request, 'topic-tag/tag_form.html', {'form': form, 'title': 'Edit Tag'})
+
+    return render(request, 'topic-tag/tag_edit.html', {
+        'form': form,
+        'tags': [tag],  # You can pass multiple tags if needed
+        'topics': topics,
+        'title': 'Edit Tag'
+    })
 
 def tag_delete(request, pk):
     tag = get_object_or_404(Tag, pk=pk)

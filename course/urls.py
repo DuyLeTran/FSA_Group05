@@ -7,7 +7,9 @@ app_name = 'course'
 urlpatterns = [
     path('', views.course_list, name='course_list'),
     path('add/', views.course_add, name='course_add'),
-    path('edit/<int:pk>/', views.course_edit, name='course_edit'),
+    path('edit/<int:pk>/details/', views.course_edit_detail, name='course_edit_detail'),
+    path('edit/<int:pk>/sessions/', views.course_edit_session, name='course_edit_session'),
+    path('edit/<int:pk>/topic-tags/', views.course_edit_topic_tags, name='course_edit_topic_tags'),
     path('courses/delete/<int:pk>/', views.course_delete, name='course_delete'),
     path('enroll/<int:pk>/', views.course_enroll, name='course_enroll'),
     path('unenroll/<int:pk>/', views.course_unenroll, name='course_unenroll'),
@@ -17,9 +19,6 @@ urlpatterns = [
     # Content
     path('<int:pk>/content/<int:session_id>/', views.course_content, name='course_content'),
     path('<int:pk>/content/edit/<int:session_id>/', views.course_content_edit, name='course_content_edit'),
-    #Export/Import
-    path('export/', views.export_course, name='export_course'),
-    path('import/', views.import_courses, name='import_course'),
     path('course/<int:pk>/toggle_publish/', views.toggle_publish, name='toggle_publish'),
     path('<int:pk>/toggle-completion/', views.toggle_completion, name='toggle_completion'),
     # Material

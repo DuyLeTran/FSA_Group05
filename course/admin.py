@@ -2,10 +2,9 @@ from django.contrib import admin
 from import_export import resources, fields
 from import_export.widgets import ManyToManyWidget, ForeignKeyWidget
 from import_export.admin import ImportExportModelAdmin
-from .models import Course, Session, Topic, Tag, Enrollment
-from user.models import User
-from .models import CourseMaterial, ReadingMaterial
-from import_export.fields import Field
+from .models import Course, Session, Topic, Tag, CourseMaterial, ReadingMaterial
+from django.contrib.auth.models import User
+
 
 class CourseResource(resources.ModelResource):
     creator = fields.Field(
@@ -63,39 +62,14 @@ class CourseResource(resources.ModelResource):
             except Course.DoesNotExist:
                 print(f"Course '{course_name}' does not exist.")  # Handle missing courses
 
-from import_export import resources, fields
-from import_export.widgets import ForeignKeyWidget
-from django.contrib import admin
-from .models import Session, Course
-
+# Session resource class
 class SessionResource(resources.ModelResource):
-    course = fields.Field(
-        attribute='course', 
-        column_name='course__course_name',
-        widget=ForeignKeyWidget(Course, 'course_name')
-    )
-    
+    course = fields.Field(attribute='course', column_name='course__course_name',
+                           widget=ForeignKeyWidget(Course, 'course_name'))
     class Meta:
         model = Session
         fields = ('id', 'course', 'name', 'order')
         import_id_fields = ('id',)
-
-    def before_import_row(self, row, **kwargs):
-        course_name = row.get("course__course_name")
-        if course_name:
-            try:
-                # Check if course exists
-                Course.objects.get(course_name=course_name)
-            except Course.DoesNotExist:
-                # Optionally, skip or log the row
-                row['import_error'] = f"Course '{course_name}' does not exist."
-
-@admin.register(Session)
-class SessionAdmin(ImportExportModelAdmin):
-    resource_class = SessionResource
-    list_display = ('course', 'name', 'order')
-    search_fields = ('course__course_name', 'name')
-
 
 class TopicResource(resources.ModelResource):
     class Meta:
@@ -111,77 +85,6 @@ class TagResource(resources.ModelResource):
         fields = ('id', 'name', 'topic')  # Include any other relevant fields
         import_id_fields = ('id',)
 
-
-class ReadingMaterialResource(resources.ModelResource):
-    material_id = Field(attribute='material', column_name='material_id')
-
-    class Meta:
-        model = ReadingMaterial
-        fields = ('id', 'material_id', 'title')  # Include 'id' if you want to allow updating existing entries
-        import_id_fields = ('id',)  # Use this to identify existing records based on 'id'
-
-
-class ReadingMaterialResource(resources.ModelResource):
-    material_id = fields.Field(
-        attribute='material',
-        column_name='material_id',
-        widget=ForeignKeyWidget(CourseMaterial, 'id')
-    )
-    content = fields.Field(
-        attribute='content',
-        column_name='content'
-    )
-
-    class Meta:
-        model = ReadingMaterial
-        fields = ('id', 'material_id', 'title', 'content')  # Include 'content' here
-        import_id_fields = ('id',)
-        skip_unchanged = True
-        report_skipped = True
-
-    def before_import_row(self, row, **kwargs):
-        # Check if material_id exists in CourseMaterial
-        if not CourseMaterial.objects.filter(id=row.get('material_id')).exists():
-            row['material_id'] = None  # Set to None if material_id doesn't exist
-
-@admin.register(ReadingMaterial)
-class ReadingMaterialAdmin(ImportExportModelAdmin):
-    resource_class = ReadingMaterialResource
-    list_display = ('material', 'title', 'content')  # Added 'content' to display it in the admin list
-    search_fields = ('title', 'material__title', 'content')  # Include 'content' in search fields
-
-    # Optional: If 'content' field is too long to display, consider using a truncated version for readability:
-    def truncated_content(self, obj):
-        return obj.content[:50] + "..." if obj.content and len(obj.content) > 50 else obj.content
-
-    truncated_content.short_description = 'Content'
-
-    list_display = ('material', 'title', 'truncated_content')  # Replaced 'content' with truncated version
-    
-# Course
-from import_export import resources, fields, widgets
-
-
-class CourseMaterialResource(resources.ModelResource):
-    # Using ForeignKeyWidget to handle the session foreign key relationship
-    session_id = fields.Field(
-        column_name='session_id',
-        attribute='session',
-        widget=widgets.ForeignKeyWidget(Session, 'id')
-    )
-
-    class Meta:
-        model = CourseMaterial
-        fields = ('id', 'session_id', 'material_id', 'material_type', 'order', 'title')
-        import_id_fields = ('id',)
-
-@admin.register(CourseMaterial)
-class CourseMaterialAdmin(ImportExportModelAdmin):
-    resource_class = CourseMaterialResource
-    list_display = ('session', 'material_id', 'material_type', 'order', 'title')
-    search_fields = ('title', 'session__id')
-
-
 @admin.register(Course)
 class CourseAdmin(ImportExportModelAdmin):
     resource_class = CourseResource
@@ -190,7 +93,11 @@ class CourseAdmin(ImportExportModelAdmin):
     search_fields = ('course_name', 'course_code')
     list_filter = ('published',)
 
-
+@admin.register(Session)
+class SessionAdmin(ImportExportModelAdmin):
+    resource_class = SessionResource
+    list_display = ('course', 'name', 'order')
+    search_fields = ('course__course_name', 'name')
 
 @admin.register(Topic)
 class TopicAdmin(ImportExportModelAdmin):
@@ -204,4 +111,103 @@ class TagAdmin(ImportExportModelAdmin):
     list_display = ('name', 'topic')
     search_fields = ('name', 'topic__name')
 
-admin.site.register(Enrollment)
+import logging
+
+# Configure logging level and format
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class CourseMaterialResource(resources.ModelResource):
+    session = fields.Field(
+        attribute='session',
+        column_name='session__id',
+        widget=ForeignKeyWidget(Session, 'id')
+    )
+
+    class Meta:
+        model = CourseMaterial
+        fields = ('session', 'material_id', 'material_type', 'order', 'title')
+        import_id_fields = ('material_id', 'session',)
+
+
+# Define the resource for ReadingMaterial with CourseMaterial details
+class ReadingMaterialResource(resources.ModelResource):
+    content = fields.Field(
+        attribute='content',
+        column_name='content'
+    )
+    material_session = fields.Field(attribute='material__session', widget=ForeignKeyWidget(Session, 'id'))
+    material_type = fields.Field(attribute='material__material_type', column_name='material_type')
+
+    class Meta:
+        model = ReadingMaterial
+        fields = ('id', 'title', 'content', 'material_session', 'material_type')
+        import_id_fields = ('title', 'content',)
+        skip_unchanged = True
+        report_skipped = True
+
+    def before_import_row(self, row, **kwargs):
+        # Keep only the relevant columns for ReadingMaterial
+        # Remove all other columns except for title and content
+        keys_to_keep = ['title', 'content']
+        row_keys = list(row.keys())
+
+        for key in row_keys:
+            if key not in keys_to_keep:
+                row.pop(key)
+
+    def after_import(self, dataset, result, **kwargs):
+        for row in dataset.dict:
+            title = row.get('title')
+            material_session = row.get('material_session')
+            content = row.get('content')  # For content
+            material_type = row.get('material_type')
+
+            try:
+                session = Session.objects.get(id=material_session)
+                print(session.name)
+
+                # Create or update the ReadingMaterial instance
+                reading_material = ReadingMaterial.objects.get(
+                    title=title,
+                    content=content,
+                )
+
+                print(reading_material.id)
+
+                # Retrieve the CourseMaterial object
+                course_material, _ = CourseMaterial.objects.get_or_create(
+                    session=session,
+                    material_id=reading_material.id,
+                    material_type=material_type,
+                    title=reading_material.title,
+                    order=CourseMaterial.objects.count()
+                )
+
+                print(course_material.id)
+
+                reading_material.material=course_material
+                reading_material.save()
+
+                logger.info(f"Processed Reading Material: Title={reading_material.title}")
+
+            except ReadingMaterial.DoesNotExist:
+                logger.error(f"ReadingMaterial with title '{title}' does not exist.")
+            except Session.DoesNotExist:
+                logger.error(f"Session with ID '{material_session}' does not exist.")
+            except Exception as e:
+                logger.exception(f"An error occurred: {e}")
+
+# Register admin classes for CourseMaterial and ReadingMaterial
+@admin.register(CourseMaterial)
+class CourseMaterialAdmin(ImportExportModelAdmin):
+    resource_class = CourseMaterialResource
+    list_display = ('session', 'material_id', 'material_type', 'order', 'title')
+    search_fields = ('title',)
+
+
+@admin.register(ReadingMaterial)
+class ReadingMaterialAdmin(ImportExportModelAdmin):
+    resource_class = ReadingMaterialResource
+    list_display = ('title', 'material', 'content')
+    search_fields = ('title', 'material__title')

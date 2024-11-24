@@ -28,12 +28,12 @@
                         {% endif %}
                         <p>
                             <strong style="margin-right: 8px;">Average Score:</strong>
-                            {% if data.average_score  <= 50  %} 
-                                <span style="color: #d01818; font-weight: bold; font-size: 18px;">{{ data.average_score }}</span>
-                            {% elif data.average_score  <= 80     %}
-                                <span style="color: rgb(244, 179, 0); font-weight: bold; font-size: 18px;">{{ data.average_score }}</span>
+                            {% if data.score  <= 50  %} 
+                                <span style="color: #d01818; font-weight: bold; font-size: 18px;">{{ data.score }}</span>
+                            {% elif data.score  <= 80     %}
+                                <span style="color: rgb(244, 179, 0); font-weight: bold; font-size: 18px;">{{ data.score }}</span>
                             {% else %}
-                                <span style="color: rgb(3, 195, 76); font-weight: bold; font-size: 18px;">{{ data.average_score }}</span>
+                                <span style="color: rgb(3, 195, 76); font-weight: bold; font-size: 18px;">{{ data.score }}</span>
                             {% endif %}
                         </p>
                         <p>
@@ -86,8 +86,8 @@
             <div class="pagination">
                 <span class="step-links">
                     {% if page_obj.has_previous %}
-                        <a href="?page=1">&laquo; First</a>
-                        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        <a href="?search={{ request.GET.search }}&page=1">&laquo; First</a>
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.previous_page_number }}">Previous</a>
                     {% else %}
                         <span class="disabled">&laquo; First</span>
                         <span class="disabled">Previous</span>
@@ -98,8 +98,8 @@
                     </span>
 
                     {% if page_obj.has_next %}
-                        <a href="?page={{ page_obj.next_page_number }}">Next</a> 
-                        <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.next_page_number }}">Next</a> 
+                        <a href="?search={{ request.GET.search }}&page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
                     {% else %}
                         <span class="disabled">Next</span>
                         <span class="disabled">Last &raquo;</span>
