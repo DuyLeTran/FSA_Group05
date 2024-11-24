@@ -26,4 +26,9 @@ urlpatterns = [
     # ---------------------------------- Achievement ----------------------------------
     path('user_perform_report/', achievement_view.user_perform_report, name = 'user_perform_report'),
     path('course_perform_report/', achievement_view.course_perform_report, name = 'course_perform_report'),
+    path('risk_prediction_report/', achievement_view.risk_prediction_report, name = 'risk_prediction_report'),
+    path('student_risk_predict/<str:course_name>/', achievement_view.student_risk_predict, name='student_risk_predict'),
+
+
+
 ]

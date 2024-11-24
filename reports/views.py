@@ -261,7 +261,7 @@ def material_usage_report(request):
 def enrollment_trends_report(request):
     today = timezone.now()
     
-    # Querying enrollments and annotating with count
+    # Querying enrollments and annotating with count 
     enrollments = (
         Enrollment.objects
         .filter(date_enrolled__month=today.month)
