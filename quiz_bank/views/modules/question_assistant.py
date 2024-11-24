@@ -37,13 +37,22 @@ class QuestionHandler():
         questions_list: list[Question] = list() 
         for question in question_queryset:
             if not question.question.id in map(lambda x: x.id, questions_list):
-                dictionary = Question(
-                    id=question.question.id,
-                    question=question.question.question_text,
-                    question_type=question.question.question_type,
-                    points=question.question.points,
-                    chapter=question.question.chapter.chapter_name
-                )
+                try:
+                    dictionary = Question(
+                        id=question.question.id,
+                        question=question.question.question_text,
+                        question_type=question.question.question_type,
+                        points=question.question.points,
+                        chapter=question.question.chapter.chapter_name
+                    )
+                except:
+                    dictionary = Question(
+                        id=question.question.id,
+                        question=question.question.question_text,
+                        question_type=question.question.question_type,
+                        points=question.question.points,
+                        chapter=None
+                    )
                 dictionary.answer.append(question.option_text)
                 if question.is_correct:
                     dictionary.key.append(question.option_text)
