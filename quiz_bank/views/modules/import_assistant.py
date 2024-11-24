@@ -1,5 +1,6 @@
 import pandas as pd
 from course.models import Course
+from ...models import Chapter
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.http import HttpResponse
@@ -17,14 +18,16 @@ class ImportPackage():
                           question:str, 
                           question_type:str, 
                           course_id:int, 
-                          points:int):
+                          points:int,
+                          chapter_id:int|None):
         if not QuizBank.objects.filter(question_text=question, course_id=course_id,question_type=question_type).exists():
                 # Create and save the new user
                 QuizBank.objects.create(
                     question_text=question,
                     course_id=course_id,
                     question_type=question_type,
-                    points=points
+                    points=points,
+                    chapter_id=chapter_id
                 )
                 print(f"Question {question} created")  # Debugging
         else:
@@ -38,7 +41,7 @@ class ImportPackage():
                         question_type:str, 
                         answer:list|str, 
                         key:list|None):
-        question_id = QuizBank.objects.get(question_text=question, course_id=course_id).id
+        question_id = QuizBank.objects.get(question_text=question, course_id=course_id, question_type=question_type).id
         match (question_type):
             case 'TEXT':
                 if not Answer.objects.filter(option_text=answer, question_id=question_id).exists():
@@ -74,12 +77,14 @@ class ImportPackage():
                                     question_type,
                                     answer,
                                     key,
-                                    points):
+                                    points,
+                                    chapter_id):
         self.__insert_question(request, 
                                question, 
                                question_type, 
                                course_id, 
-                               points)
+                               points,
+                               chapter_id)
         self.__insert_answer(request, 
                              course_id, 
                              question, 
@@ -95,6 +100,10 @@ class ImportPackage():
         for i, (index, row) in enumerate(df.iterrows()):
             options = [f'options[{i}]' for i in OPTION_LIST]
             question = str(row.get('question'))
+            try:
+                chapter_id = Chapter.objects.get(chapter_name=str(row.get('chapter'))).id
+            except:
+                chapter_id = None
             answer = pd.DataFrame(row.get(options))
             true_answer = str(row.get('correct')).split(',')
             # print(question, answer, true_answer, sep='\n')
@@ -113,7 +122,8 @@ class ImportPackage():
                                               question_type,
                                               answer=answer_list,
                                               key=key_list,
-                                              points=points)
+                                              points=points,
+                                              chapter_id=chapter_id)
     def import_true_false_question(self,
                                    request,
                                    df:pd.DataFrame,
@@ -122,6 +132,10 @@ class ImportPackage():
         for i, (index, row) in enumerate(df.iterrows()):
             options = [f'options[{i}]' for i in ['a', 'b']]
             question = str(row.get('question'))
+            try:
+                chapter_id = Chapter.objects.get(chapter_name=str(row.get('chapter'))).id
+            except:
+                chapter_id = None
             answer = pd.DataFrame(row.get(options))
             true_answer = str(row.get('correct')).split(',')
             # print(question, answer, true_answer, sep='\n')
@@ -140,7 +154,8 @@ class ImportPackage():
                                               question_type,
                                               answer=answer_list,
                                               key=key_list,
-                                              points=points)
+                                              points=points,
+                                              chapter_id=chapter_id)
 
     def import_text_question(self,
                              request,
@@ -149,6 +164,11 @@ class ImportPackage():
                              question_type:str):
         for index, row in df.iterrows():
             question = str(row.get('question')).strip()
+            print(question)
+            try:
+                chapter_id = Chapter.objects.get(chapter_name=str(row.get('chapter'))).id
+            except:
+                chapter_id = None
             true_answer = str(row.get('correct')).strip()
             points = int(str(row.get('points')).strip())
             print(f"Processing question: {question}")
@@ -159,7 +179,8 @@ class ImportPackage():
                                         question_type,
                                         answer=true_answer,
                                         key=None,
-                                        points=points)
+                                        points=points,
+                                        chapter_id=chapter_id)
 
 class ImportFormObject():
     def __init__(self, 

@@ -16,6 +16,11 @@
 #info-icon:hover #tooltip {
   visibility: visible;
 }
+.table-responsive {
+          max-height: 30rem;
+          overflow: auto;
+          display:inline-block;
+      }
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=info" />
 <div class="container mt-4">
@@ -27,49 +32,62 @@
             <a class="btn btn-secondary" title="Randomized Again" href="{% url 'quiz_bank:quiz_bank_course_refresh' course.id %}">
                 <i class="fas fa-file-export"></i> Back to Quiz Bank - {{course.course_code}}
             </a>
-            <button type="submit" class="btn btn-primary" name="reload">
-                <a title="Randomized Again" data-toggle="tooltip">
-                    <i class="fas fa-file-export"></i> Randomize Questions Again
-                </a>
-            </button>
             {% if is_add %}
             <button type="submit" class="btn btn-secondary" name="export-json">
-                <a method="post" title="Export Randomized Questions to Previous Add Quiz Page" data-toggle="tooltip">
+                <a title="Export Randomized Questions to Previous Add Quiz Page" data-toggle="tooltip">
                     <i class="fas fa-file-export"></i> Export to Add Quiz Page
                 </a>
             </button>
             {% else %}
                 <button type="submit" class="btn btn-secondary" name="export-json">
-                    <a method="post" title="Export Randomized Questions to JSON" data-toggle="tooltip">
+                    <a title="Export Randomized Questions to JSON" data-toggle="tooltip">
                         <i class="fas fa-file-export"></i> Export JSON
                     </a>
                 </button>
                 <a class="btn btn-secondary" id="info-icon">
                     <i class="fa fa-info-circle"></i>
                 </a>
-                <span id="tooltip">JSON Format: [{"question":..., "options":..., "correct":..., "id":..., "question_type":...},{...}]</span>
+                <span id="tooltip">JSON Format: [{"question":..., "options":..., "correct":..., "id":..., "question_type":..., "chapter":...},{...}]</span>
             {% endif %}
             </p>
+            <div class="form-group">
+                <p>
+                <span>
+                Enter Number of Questions : 
+                {{ number_of_questions_form.number_of_questions }}
+                <button type="submit" class="btn btn-primary" name="reload">
+                    <a title="Randomized Again" data-toggle="tooltip">
+                        <i class="fas fa-file-export"></i> Randomize Questions Again
+                    </a>
+                </button>  
+                {% if not is_valid %}
+                <span style="color: red;">Invalid Input (input must be an integer greater than 0)</span>
+                {% endif %}             
+              </span> 
+              </p>      
+            </div>
         </form>
     </div>
-    <div class="mt-3">
+    <div class="mt-3 table-responsive container-fluid">
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Questions</th>
-                    <th>Question Type</th>
-                    <th>Answer Options</th>
-                    <th>Key</th>
+                    <th class="text-center align-middle">#</th>
+                    <th class="text-center align-middle">Questions</th>
+                    <th class="text-center align-middle">Chapter</th>
+                    <th class="text-center align-middle">Question Type</th>
+                    <th class="text-center align-middle">Answer Options</th>
+                    <th class="text-center align-middle">Key</th>
                 </tr>
             </thead>
             <tbody>
                 {% for question in question_list %}
                 <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ question.question }}</td>
-                    <td>{{ question.question_type }}</td>
-                    <td>
+                    <td class="align-middle">{{ forloop.counter }}</td>
+                    <td class="align-middle">{{ question.question }}</td>
+                    <td class="text-center align-middle">{{ question.chapter }}</td>
+                    <td class="text-center align-middle">{{ question.question_type }}</td>
+                    <td class="align-middle">
                         <ul>
                             {% for option in question.answer %}
                             <li>
@@ -78,7 +96,7 @@
                             {% endfor %}
                         </ul>
                     </td>
-                    <td>
+                    <td class="align-middle">
                         {% for key in question.key %}
                         <ul>
                             <li>
@@ -98,7 +116,7 @@
     const tooltip = document.getElementById('tooltip');
 
     infoIcon.addEventListener('mouseover', () => {
-        tooltip.textContent = 'JSON Format: [{"question":..., "options":..., "correct":..., "id":..., "question_type":...},{...}]'; // Change the tooltip text
+        tooltip.textContent = 'JSON Format: [{"question":..., "options":..., "correct":..., "id":..., "question_type":..., "chapter":...},{...}]'; // Change the tooltip text
         tooltip.style.visibility = 'visible';
     });
 

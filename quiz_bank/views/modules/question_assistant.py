@@ -7,6 +7,7 @@ from ...forms import *
 from django.forms.models import modelformset_factory
 from django.forms import formset_factory
 from django.http import HttpResponseBadRequest
+from dataclasses import dataclass, field
 
 OPTION_LIST = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
 FROM_OPTION_TO_INDEX = dict(list(zip(OPTION_LIST, [i for i in range(0, 7)])))
@@ -17,31 +18,44 @@ INIT_QUESTION_DICT = {
                 'id':None,
                 'question_type':None
             }
+
+@dataclass(slots=True, kw_only=True)
+class Question:
+    id: int
+    question: str
+    answer: list[str] = field(default_factory=list)
+    key: list[str] = field(default_factory=list)
+    question_type: str
+    points: int
+    chapter: str
+
 class QuestionHandler():
     def __init__(self):
         pass
 
-    def process_question_query(self, question_queryset:list[Answer]) -> list[dict]:
-        questions_list = list() 
+    def process_question_query(self, question_queryset:list[Answer]) -> list[Question]:
+        questions_list: list[Question] = list() 
         for question in question_queryset:
-            if not question.question.id in map(lambda x: x['id'], questions_list):
-                dictionary = deepcopy(INIT_QUESTION_DICT)
-                dictionary['id'] = question.question.id
-                dictionary['question_type'] = question.question.question_type
-                dictionary['points'] = question.question.points
-                dictionary['question'] = question.question.question_text
-                dictionary['answer'].append(question.option_text)
+            if not question.question.id in map(lambda x: x.id, questions_list):
+                dictionary = Question(
+                    id=question.question.id,
+                    question=question.question.question_text,
+                    question_type=question.question.question_type,
+                    points=question.question.points,
+                    chapter=question.question.chapter.chapter_name
+                )
+                dictionary.answer.append(question.option_text)
                 if question.is_correct:
-                    dictionary['key'].append(question.option_text)
+                    dictionary.key.append(question.option_text)
                 questions_list.append(dictionary)
             else:
-                dictionary['answer'].append(question.option_text)
+                dictionary.answer.append(question.option_text)
                 if question.is_correct:
-                    dictionary['key'].append(question.option_text)
+                    dictionary.key.append(question.option_text)
 
         return questions_list
     
-    def get_random_question(self, course_id:int, num_questions:int) -> list[dict]:
+    def get_random_question(self, course_id:int, num_questions:int) -> list[Question]:
         """_summary_
 
         Args:
@@ -52,8 +66,8 @@ class QuestionHandler():
             list[dict]: 
 
         [
-            {'question': 'abc', 'options': ['A', 'B'], 'correct': ['A'], 'id': 1, 'question_type': 'MCQ'}, 
-            {'question': 'abf', 'options': ['A', 'B', 'C'], 'correct': ['B'], 'id': 2, 'question_type': 'MCQ'}
+            {'question': 'abc', 'options': ['A', 'B'], 'correct': ['A'], 'id': 1, 'question_type': 'MCQ', "chapter": "chap1"}, 
+            {'question': 'abf', 'options': ['A', 'B', 'C'], 'correct': ['B'], 'id': 2, 'question_type': 'MCQ', "chapter": "chap1"}
         ]
             
         """        
@@ -170,8 +184,14 @@ class QuestionSelectionHandler():
                                                      filter_form:FilterByQuestionTypeForm,
                                                      course_id:int):
         if filter_form.is_valid():
-            question_queryset = Answer.objects.filter(question__course_id=course_id, 
-                                                    question__question_type=filter_form.cleaned_data['filter_by'])
+            match filter_form.cleaned_data['chapter']:
+                case 'all':
+                    question_queryset = Answer.objects.filter(question__course_id=course_id, 
+                                                            question__question_type=filter_form.cleaned_data['filter_by'])
+                case _:
+                    question_queryset = Answer.objects.filter(question__course_id=course_id, 
+                                                              question__question_type=filter_form.cleaned_data['filter_by'],
+                                                              question__chapter__chapter_name=filter_form.cleaned_data['chapter'])
         else:
             question_queryset = Answer.objects.filter(question__course_id=course_id)
 

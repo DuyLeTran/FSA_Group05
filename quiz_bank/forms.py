@@ -1,7 +1,7 @@
 from django import forms
 from course.models import Course
 from quiz.models import Question, Quiz, AnswerOption
-from .models import QuizBank, Answer
+from .models import QuizBank, Answer, Chapter
 
 class QuestionCourseForm(forms.ModelForm):
     question_type = forms.ChoiceField(choices=[('MCQ', 'MCQ'), ('TF', 'TF'), ('TEXT', 'TEXT')],
@@ -41,6 +41,7 @@ class NumberForm(forms.Form):
 
 class FilterByQuestionTypeForm(forms.Form):
     filter_by = forms.ChoiceField(choices=[('MCQ', 'MCQ'), ('TF', 'TF'), ('TEXT', 'TEXT')])
+    chapter = forms.ChoiceField(choices=[('all', 'All'), *tuple((_chapter.chapter_name, _chapter.chapter_name) for _chapter in Chapter.objects.all())], required=False)
 
 class ExportTypeForm(forms.Form):
     export_type = forms.ChoiceField(choices=[('JSON', 'JSON'), ('EXCEL', 'EXCEL')])
@@ -72,14 +73,41 @@ class AnswerForm(forms.ModelForm):
 class QuestionForm(forms.ModelForm):
     class Meta:
         model = QuizBank
-        fields = ['question_text']
+        fields = ['question_text', 'chapter']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['chapter'].queryset = Chapter.objects.all()
 
 class QuestionAddForm(forms.ModelForm):
     class Meta:
         model = QuizBank
-        fields = ['question_text', 'question_type', 'points']
+        fields = ['question_text', 'question_type', 'points', 'chapter']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['chapter'].queryset = Chapter.objects.all()
 
 class ExcelImportWithoutCourseForm(forms.Form):
     excel_file = forms.FileField(label="Upload Excel File")
     question_type = forms.ChoiceField(choices=[('MCQ', 'MCQ'), ('TF', 'TF'), ('TEXT', 'TEXT')],
                                       required=False)
+
+class NumberOfQuestionsForm(forms.Form):
+    number_of_questions = forms.IntegerField(label="Enter Number of Questions", required=False)
+
+class GetRandomForm(forms.ModelForm):
+    number_of_questions = forms.IntegerField(label="Enter Number of Questions", required=False)
+    class Meta:
+        model = Quiz
+        fields = ['course']
+        labels = {
+            'course': 'Select a Course:',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['course'].queryset = Course.objects.all()
+
+class JSONForm(forms.Form):
+    json_file = forms.FileField(label='Upload JSON')

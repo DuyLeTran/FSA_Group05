@@ -18,8 +18,6 @@ def export_selected_question(request, course_id):
 
     final_question_list = QuestionHandler().process_question_query(question_queryset)
 
-    
-
     if request.method == 'POST':
         question_selection_handler.get_id_list_from_request_to_session(request)
         return redirect(reverse('quiz_bank:export_selected_confirm', kwargs={'course_id': course_id}))
@@ -39,12 +37,8 @@ def export_selected_confirm(request, course_id):
         question_queryset = question_selection_handler.get_question_queryset_from_filter_and_id_list(request, filter_form)
     except:
         return HttpResponseBadRequest('Bad Request: No ID list received from HttpRequest.')
-    
     final_question_list = QuestionHandler().process_question_query(question_queryset)
-
     if request.method == 'POST':
-        print('post')
-        print(request.POST)
         export_type_form = ExportTypeForm(request.POST)
         if export_type_form.is_valid():
             print('valid')
