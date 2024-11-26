@@ -1,13 +1,11 @@
 # Function(s) for usage
-import json
-import pandas as pd
-from copy import deepcopy
 from ...models import QuizBank, Answer
 from ...forms import *
 from django.forms.models import modelformset_factory
 from django.forms import formset_factory
-from django.http import HttpResponseBadRequest
 from dataclasses import dataclass, field
+
+from cdifflib import CSequenceMatcher
 
 OPTION_LIST = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
 FROM_OPTION_TO_INDEX = dict(list(zip(OPTION_LIST, [i for i in range(0, 7)])))
@@ -217,3 +215,46 @@ class QuestionSelectionHandler():
     def get_question_queryset_from_id_list(self):
         question_queryset = Answer.objects.filter(question_id__in=self.selected_question_ids)
         return question_queryset
+    
+class QuestionCompareModule():
+    def __init__(self, questions_list: list[Question]):
+        self.questions_list: list[Question] = questions_list
+
+    def __similarity_filter(self, similarity:tuple[float, tuple[int, int]]) -> bool:
+        return similarity[0] > 0.75
+
+    def __get_id_and_question_tuple(self) -> tuple[int, str]:
+        return tuple(map(lambda x: tuple((x.id, x.question)), self.questions_list))
+    
+    def __compare_two_question(self, questions:tuple[int, str]) -> tuple[float, tuple[int, int]]:
+
+        _ids = tuple(map(lambda x: x[0], questions))
+        questions = tuple(map(lambda x: x[1], questions))
+
+        model = CSequenceMatcher(None, questions[0], questions[1])
+
+        return tuple((model.ratio(), tuple(_ids)))
+    
+    def compare(self) -> tuple[float, tuple[int, int]] | tuple[tuple[float, tuple[int, int]]] | None:
+        if len(self.questions_list) == 2:
+            return self.__compare_two_question(self.__get_id_and_question_tuple())
+        elif len(self.questions_list) > 2:
+            from itertools import combinations
+
+            combined_questions_list = tuple(combinations(self.__get_id_and_question_tuple(), 2))
+
+            return tuple((self.__compare_two_question(questions) for questions in combined_questions_list))
+        else:
+            return None
+            
+    def get_similar_ids(self) -> tuple[int]:
+        data = self.compare()
+        if not data:
+            return ()
+        elif len(self.questions_list) == 2:
+            return () if not self.__similarity_filter(data) else data[1]
+        else:
+            return tuple(map(lambda x: x[1],filter(self.__similarity_filter, data)))
+        
+
+    

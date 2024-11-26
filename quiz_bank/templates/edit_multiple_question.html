@@ -50,17 +50,14 @@
               </tr>
           </thead>
           <tbody>
-              {{ formset.management_form }}
-              {{formset}}
               {% for form in formset %}
               <tr>
                   <td class="align-middle">{{ forloop.counter }}</td>
-                  <td class="align-middle">{{ form.question_text }}</td>
-                  <td class="align-middle">{{ form.chapter }}</td>
+                  <td class="align-middle">{{ form.question_form.question_text }}</td>
+                  <td class="align-middle">{{ form.question_form.chapter }}</td>
                   <td class="align-middle">
                       <ul>
-                          {{ form.answeroption_set.management_form }}
-                          {% for answer_form in form.answeroption_set.forms %}
+                          {% for answer_form in form.answer_form %}
                           <li>
                               {{ answer_form.option_text }}
                               {{ answer_form.is_correct }}
