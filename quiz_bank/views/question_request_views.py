@@ -88,3 +88,19 @@ def edit_question(request, course_id, question_id):
                                                   'question_form':question_form,
                                                   'course_id':course_id,
                                                   'question_id': question_id})
+
+def edit_multiple_question(request, course_id):
+    from django.http import HttpResponse
+    from ..forms import AnswerForm, QuestionForm
+    course = Course.objects.get(id=course_id)
+    question_queryset = QuizBank.objects.filter(course_id=course_id)
+    formset = QuestionFormset(queryset=question_queryset)
+    if request.method == 'POST':
+        formset = QuestionFormset(request.POST)
+        if formset.is_valid():
+            formset.save()
+    else:
+        formset = QuestionFormset(queryset=question_queryset)
+    return render(request, 'edit_multiple_question.html', context={'formset': formset,
+                                                                   'question_count':len(question_queryset),
+                                                                   'course': course})

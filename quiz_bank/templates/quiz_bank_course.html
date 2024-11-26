@@ -45,6 +45,9 @@
               </li>
               {% if is_shown %}
               <li>
+                <a href="{% url 'quiz_bank:edit_multiple_question' course.id %}" class="dropdown-item">Go to Edit</a>
+              </li>
+              <li>
                 <a href="{% url 'quiz_bank:delete_selected_question' course.id %}" class="dropdown-item">Go to Delete</a>
               </li>
               <li>
