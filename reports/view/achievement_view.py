@@ -2,7 +2,7 @@ from django.shortcuts import render, HttpResponse
 from django.db.models import Count, F, Q
 from module_group.models import ModuleGroup, Module
 from ..forms import CourseForm
-from ..function import *
+from ..function import cleaned_data, get_course_progress_and_enrollments, get_highest_percent_pass, get_lowest_percent_pass
 from course.models import Course
 from django.db.models import Q
 from course.models import Enrollment
@@ -37,18 +37,13 @@ def course_perform_report(request):
                                                            'message': message,
                                                            'all_courses':all_courses,})
         else:
-            course = course.first()
             display = 'specific'
-            context = {
-                'score_distribution': get_score_distribution(course),
-                'get_specific_info': get_specific_info(course)
-            }   
+            
             return render(request, 'achievement/course_perform_report.html', {'module_groups': module_groups,
                                                            'modules': modules,
                                                            'form': form,
                                                            'all_courses':all_courses,
-                                                           'display': display,
-                                                           'context': context})
+                                                           'display': display})
     else:
         display = 'All'
 
@@ -162,6 +157,7 @@ def user_perform_report(request):
 
     return render(request, 'achievement/user_perform_report.html', context)
 
+
 def risk_prediction_report(request):
     courses = Course.objects.values_list('course_name', flat=True)
 
@@ -181,48 +177,98 @@ def risk_prediction_report(request):
         session_count = Session.objects.filter(course__course_name=course_name).count()
         for user_data in course_data: 
             user = user_data['user__username']
+            try:
+                score_entry = CourseFinalScore.objects.get(course__course_name=course_name, user__username=user)
+                score = score_entry.score
+            except CourseFinalScore.DoesNotExist:
+                score = None
+
             activity_count = user_data['activity_count']
             evaluation_report.append({
                 'course_name': course_name,
                 'user': user,
                 'activity_count': activity_count,
                 'session_count': session_count, 
+                'score':score
             })
+
+    search_term = request.GET.get('search', '').strip()
+    filter_course = request.GET.get('filter_course', '').strip()
+
+    if search_term:
+        evaluation_report = [
+            entry for entry in evaluation_report
+            if search_term.lower() in entry['course_name'].lower()
+        ]
+
+    if filter_course:
+        evaluation_report = [
+            entry for entry in evaluation_report
+            if entry['course_name'] == filter_course
+        ]
+
     data = {}
 
     for entry in evaluation_report:
         course_name = entry['course_name']
-        activity_count = entry['activity_count']  
+        activity_count = entry['activity_count']
         session_count = entry['session_count']
-
-        if course_name not in data:
-            data[course_name] = [0, 0, 0]  
-
-        if activity_count < (session_count):
-            data[course_name][2] += 1
-        elif (session_count) <= activity_count <= (session_count*2):
-            data[course_name][1] += 1
+        score = entry['score']
+        if score is None:
+            if course_name not in data:
+                data[course_name] = [0, 0, 0]  
+            if activity_count < session_count:
+                data[course_name][2] += 1  
+            elif session_count <= activity_count <= session_count * 2:
+                data[course_name][1] += 1  
+            else:
+                data[course_name][0] += 1 
         else:
-            data[course_name][0] += 1
+            if course_name not in data:
+                data[course_name] = [0, 0, 0]  
 
-    
-    labels = ['Low', 'Medium', 'High']
-    
+
+            if activity_count < session_count or score < 65:
+                data[course_name][2] += 1  
+            elif activity_count >= session_count or score > 65:
+                data[course_name][0] += 1 
+            else:
+                data[course_name][1] += 1
+
+    if search_term:
+        data = {
+            course_name: counts
+            for course_name, counts in data.items()
+            if search_term.lower() in course_name.lower()
+        }
+
+    if filter_course:
+        data = {
+            course_name: counts
+            for course_name, counts in data.items()
+            if course_name == filter_course
+        }
+
+    # Pagination
     page = request.GET.get('page', 1)
-    paginator = Paginator(list(data.items()), 8)  # 4 items per page
+    paginator = Paginator(list(data.items()), 8)  # 8 items per page
     paginated_data = paginator.get_page(page)
 
     context = {
         'evaluation_report': evaluation_report,
-        'labels': labels,
+        'labels': ['High', 'Medium', 'Low'],
         'data': dict(paginated_data),
         'paginator': paginator,
         'paginated_data': paginated_data,
-        'module_groups': module_groups,
+        'search_term': search_term, 
+        'filter_course': filter_course,  
+        'all_courses': courses,
         'modules': modules,
+        'module_groups': module_groups,
     }
 
     return render(request, 'achievement/risk_prediction_report.html', context)
+
 
 
 
@@ -236,16 +282,36 @@ def student_risk_predict(request, course_name):
     data =[0,0,0]
     for user_data in user_activity_counts:
         activity_count = user_data['activity_count']
-        if activity_count < session_count:
-            user_data['risk'] = 'High'
-            data[2] += 1
-        elif session_count <= activity_count <= session_count*2:
-            user_data['risk'] = 'Medium'
-            data[1] += 1
+        user = user_data['user__username']
 
+        try:
+            score_entry = CourseFinalScore.objects.get(course__course_name=course_name, user__username=user)
+            score = score_entry.score
+        except CourseFinalScore.DoesNotExist:
+            score = None
+
+        user_data['score'] = score
+        if score is not None:
+            if activity_count < session_count and score < 65:
+                user_data['risk'] = 'High'
+                data[2] += 1
+            elif activity_count >= session_count and score > 65:
+                user_data['risk'] = 'Low'
+                data[0] += 1
+            else:
+                user_data['risk'] = 'Medium'
+                data[1] += 1
         else:
-            user_data['risk'] = 'Low'
-            data[0] += 1
+            if activity_count < session_count :
+                user_data['risk'] = 'High'
+                data[2] += 1
+            elif session_count <= activity_count <= session_count*2 :
+                user_data['risk'] = 'Medium'
+                data[1] += 1
+
+            else:
+                user_data['risk'] = 'Low'
+                data[0] += 1
 
     labels = ['Low', 'Medium', 'High']
     paginator = Paginator(user_activity_counts, 10) 
