@@ -83,6 +83,11 @@ def quiz_bank_course_refresh(request, course_id):
 
 def quiz_bank_course(request, course_id):
     request.session.pop('selected_question_ids', None)
+    if 'added' in request.session:
+        added = request.session['added']
+    else:
+        added = None
+    request.session.pop('added', None)
     course = Course.objects.get(id=course_id)
     filter_form = FilterByQuestionTypeForm(request.GET)
     form = NumberForm()
@@ -124,7 +129,8 @@ def quiz_bank_course(request, course_id):
                                                                         'form':form,
                                                                         'filter_form': filter_form,
                                                                         'filter_form_data': filter_form_data,
-                                                                        'chap': chap})
+                                                                        'chap': chap,
+                                                                        'added':added})
             json_data = QuestionHandler().get_random_question(course_id, number_of_questions)
             json_data = [asdict(question) for question in json_data]
             request.session['json_data'] = json_data
@@ -142,7 +148,8 @@ def quiz_bank_course(request, course_id):
                                                                     'form':form,
                                                                     'filter_form': filter_form,
                                                                     'filter_form_data': filter_form_data,
-                                                                    'chap': chap})
+                                                                    'chap': chap,
+                                                                    'added':added})
     else:    
         return render(request, 'quiz_bank_course.html', {'form':form,
                                                         'course': course, 
@@ -150,7 +157,8 @@ def quiz_bank_course(request, course_id):
                                                         'course_id':course_id,
                                                         'filter_form': filter_form,
                                                         'filter_form_data': filter_form_data,
-                                                        'chap': chap})
+                                                        'chap': chap,
+                                                        'added':added})
     
 def random_question_before_add_quiz(request):
     get_random_form = GetRandomForm()

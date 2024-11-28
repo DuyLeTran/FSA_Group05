@@ -3,7 +3,7 @@ from ...models import QuizBank, Answer
 from ...forms import *
 from django.forms.models import modelformset_factory
 from django.forms import formset_factory
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 from typing import Union
 from cdifflib import CSequenceMatcher
@@ -149,22 +149,58 @@ class QuestionFormHandler():
         return answer_formset, question_form
     
     def save_forms(self, 
+                   request,
                    answer_formset, 
-                   question_form,
+                   question_form: QuestionAddForm|QuestionForm,
                    course_id:int|None) -> None:
+        compare_module = QuestionCompareModule()
+        compare_module.get_questions_list(QuizBank.objects.filter(course_id=course_id))
         match self.form_type:
             case 'edit':
-                question = question_form.save(commit=False)
-                question.save()
+                question: QuizBank = question_form.save(commit=False)
+                if not QuizBank.objects.filter(question_text=question.question_text, 
+                                               course_id=course_id,
+                                               question_type=question.question_type).exists():
+                    question.save()
+                else: return {
+                        'question_added': False,
+                        'answer_added_failed': len(answer_formset)
+                    }
             case 'add':
-                question = question_form.save(commit=False)
-                question.course_id = course_id
-                question.save()
+                question: QuizBank = question_form.save(commit=False)
+                if not QuizBank.objects.filter(question_text=question.question_text, 
+                                               course_id=course_id,
+                                               question_type=question.question_type).exists():
+                # print(question.objects.all())
+                # temp_question = Question(id=str(uuid.uuid4()),
+                #                          question=question.question_text,
+                #                          answer=question)
+                # if not compare_module.get_outer_similar_ids(question=question.question_text):
+                #     # request.session['similar_ids'] = compare_module.get_outer_similar_ids(question=question.question_text)
+                #     # request.session['question'] = 
+                #     # raise Exception()
+                #     print(compare_module.get_outer_similar_ids(question=question.question_text))
+                    question.course_id = course_id
+                    question.save()
+                else: return {
+                        'question_added': False,
+                        'answer_added_failed': len(answer_formset)
+                    }
         question_id = question.id
+        answer_added_failed = 0
         for answer_form in answer_formset:
-            answer_commit = answer_form.save(commit=False)
-            answer_commit.question_id = question_id
-            answer_commit.save()
+            answer_commit : Answer = answer_form.save(commit=False)
+            if not Answer.objects.filter(option_text=answer_commit.option_text, 
+                                         question_id=question_id).exists():
+                answer_commit.question_id = question_id
+                answer_commit.save()
+            else: 
+                answer_added_failed += 1
+                continue
+        return {
+            'question_added': True,
+            'answer_added_failed': answer_added_failed
+        }
 
 class QuestionSelectionHandler():
     def __init__(self):
@@ -227,18 +263,15 @@ class QuestionCompareModule():
         return similarity[0] > 0.75
 
     def __get_id_and_question_tuple(self) -> tuple[int|str, str]:
-        return tuple(map(lambda x: tuple((x.id, x.question)), self.questions_list))
+        return tuple(map(lambda x: tuple((x.id, x.question_text)), self.questions_list))
     
     def __combine_outer_question(self, question: Question):
-        return tuple(map(lambda x: ((question.id, ), x.question_text), self.questions_list))
-    
-    def __compare_two_questions(self, questions:tuple[int|str, str]) -> tuple[float, tuple[int|str, int]]:
+        return tuple(map(lambda x: ((question.id, question.question), (x.id,x.question_text)), self.questions_list))        
 
+    def __compare_two_questions(self, questions:tuple[int|str, str]) -> tuple[float, tuple[int|str, int]]:
         _ids = tuple(map(lambda x: x[0], questions))
         questions = tuple(map(lambda x: x[1], questions))
-
         model = CSequenceMatcher(None, questions[0], questions[1])
-
         return tuple((model.ratio(), tuple(_ids)))
     
     def get_questions_list(self, questions_list: list[Question]|list[QuizBank]):
@@ -249,16 +282,22 @@ class QuestionCompareModule():
             return self.__compare_two_questions(self.__get_id_and_question_tuple())
         elif len(self.questions_list) > 2:
             combined_questions_list = tuple(combinations(self.__get_id_and_question_tuple(), 2))
+            print(combined_questions_list)
             return tuple((self.__compare_two_questions(questions) for questions in combined_questions_list))
         else:
             return None
         
     def outer_compare(self, question: Question):
-        combined_questions_list = self.__combine_outer_question(question)
-
-        return tuple((self.__compare_two_questions(questions) for questions in combined_questions_list))
+        if len(self.questions_list) == 1:
+            return self.__compare_two_questions((question.id, question.question), 
+                                                (self.questions_list[0].id,self.questions_list[0].question_text))
+        elif len(self.questions_list) > 1:
+            combined_questions_list = self.__combine_outer_question(question)
+            return tuple((self.__compare_two_questions(questions) for questions in combined_questions_list))
+        else:
+            return None
             
-    def get_similar_ids(self) -> tuple[int]:
+    def get_inner_similar_ids(self) -> tuple[int]:
         data = self.inner_compare()
         if not data:
             return ()
@@ -266,6 +305,15 @@ class QuestionCompareModule():
             return () if not self.__similarity_filter(data) else data[1]
         else:
             return tuple(map(lambda x: x[1],filter(self.__similarity_filter, data)))
+        
+    def get_outer_similar_ids(self, question: Question) -> tuple[int]:
+        data = self.outer_compare(question)
+        if not data:
+            return ()
+        elif len(self.questions_list) == 2:
+            return () if not self.__similarity_filter(data) else data[1]
+        else:
+            return list(map(lambda x: x[1],filter(self.__similarity_filter, data)))
         
 
     
