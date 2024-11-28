@@ -21,6 +21,13 @@
         background-color: var(--background-color);
     }
 
+    thead {
+        position: sticky;
+        top: 0;
+        background-color: white; /* Ensure the header background is visible */
+        z-index: 1; /* Makes sure the header stays on top of the body content */
+    }
+
     .container {
         max-width: 1200px;
         margin: 2rem auto;
