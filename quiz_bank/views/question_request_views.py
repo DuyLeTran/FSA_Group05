@@ -10,6 +10,9 @@ def delete_question(request, course_id, question_id):
     answer = Answer.objects.filter(question_id=question_id)
     if request.method == 'POST':
         question.delete()
+        request.session['deleted'] = {
+            'deleted_question': 1
+        }
         return redirect(reverse('quiz_bank:quiz_bank_course_refresh',kwargs={'course_id':course_id}))
     return render(request, 'question_delete.html', {'question': question,
                                                     'answer': answer, 
@@ -51,6 +54,9 @@ def delete_selected_confirm(request, course_id):
     final_question_list = QuestionHandler().process_question_query(question_queryset)
 
     if request.method == 'POST':
+        request.session['deleted'] = {
+            'deleted_question': len(question_selection_handler.selected_question_ids)
+        }
         question_selection_handler.delete_question_from_id_list(request)
         return redirect(reverse('quiz_bank:quiz_bank_course_refresh', kwargs={'course_id': course_id}))
     else:    

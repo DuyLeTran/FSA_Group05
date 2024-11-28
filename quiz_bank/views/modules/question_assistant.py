@@ -152,7 +152,7 @@ class QuestionFormHandler():
                    request,
                    answer_formset, 
                    question_form: QuestionAddForm|QuestionForm,
-                   course_id:int|None) -> None:
+                   course_id:int|None) -> dict:
         compare_module = QuestionCompareModule()
         compare_module.get_questions_list(QuizBank.objects.filter(course_id=course_id))
         match self.form_type:
