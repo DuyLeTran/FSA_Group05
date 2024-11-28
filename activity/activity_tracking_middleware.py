@@ -73,50 +73,51 @@ class ActivityTrackingMiddleware:
             excluded_urls = ['unread_notification_count']  # Add any other URLs to exclude here
 
             if current_url not in excluded_urls:
-                if 'course' in current_url:
-                    # Get the course ID from kwargs (from URL)
-                    course_id = resolved_url.kwargs.get('pk')
+                if current_url:
+                    if'course' in current_url:
+                        # Get the course ID from kwargs (from URL)
+                        course_id = resolved_url.kwargs.get('pk')
 
-                    if course_id:
-                        try:
-                            # Fetch course details from the database
-                            course = Course.objects.get(pk=course_id)
-                            activity_details = f"Accessed {current_url}: {course.course_name}"
-                        except Course.DoesNotExist:
-                            activity_details = "Accessed course page (course not found)"
+                        if course_id:
+                            try:
+                                # Fetch course details from the database
+                                course = Course.objects.get(pk=course_id)
+                                activity_details = f"Accessed {current_url}: {course.course_name}"
+                            except Course.DoesNotExist:
+                                activity_details = "Accessed course page (course not found)"
+                        else:
+                            activity_details = f"Accessed {current_url}"
+
+                        # Log course enrollment activity
+                        UserActivityLog.objects.create(
+                            user=request.user,
+                            activity_type='page_visit',
+                            activity_details=activity_details,
+                            activity_timestamp=timezone.now()
+                        )
+
+                    elif current_url == 'activity_view':
+                        # Only log the activity if this is the first access during the session
+                        if not request.session.get('activity_page_accessed', False):
+                            UserActivityLog.objects.create(
+                                user=request.user,
+                                activity_type='page_visit',
+                                activity_details=f"Accessed {current_url}",
+                                activity_timestamp=timezone.now()
+                            )
+                            # Set the flag in the session to True
+                            request.session['activity_page_accessed'] = True
                     else:
-                        activity_details = f"Accessed {current_url}"
-
-                    # Log course enrollment activity
-                    UserActivityLog.objects.create(
-                        user=request.user,
-                        activity_type='page_visit',
-                        activity_details=activity_details,
-                        activity_timestamp=timezone.now()
-                    )
-
-                elif current_url == 'activity_view':
-                    # Only log the activity if this is the first access during the session
-                    if not request.session.get('activity_page_accessed', False):
+                        # Log access to other pages
                         UserActivityLog.objects.create(
                             user=request.user,
                             activity_type='page_visit',
                             activity_details=f"Accessed {current_url}",
                             activity_timestamp=timezone.now()
                         )
-                        # Set the flag in the session to True
-                        request.session['activity_page_accessed'] = True
-                else:
-                    # Log access to other pages
-                    UserActivityLog.objects.create(
-                        user=request.user,
-                        activity_type='page_visit',
-                        activity_details=f"Accessed {current_url}",
-                        activity_timestamp=timezone.now()
-                    )
 
-                    # Reset the flag if they navigate away from the activity page
-                    if 'activity_page_accessed' in request.session:
-                        del request.session['activity_page_accessed']
+                        # Reset the flag if they navigate away from the activity page
+                        if 'activity_page_accessed' in request.session:
+                            del request.session['activity_page_accessed']
 
         return response

@@ -1,13 +1,13 @@
 
 // Gán giá trị cho các biến từ Django
-const courseCode = JSON.parse(document.getElementById("course-code").textContent);
-const courseNames = JSON.parse(document.getElementById("course-names").textContent);
-const enrollCounts = JSON.parse(document.getElementById("enroll-data").textContent);
-const passCounts = JSON.parse(document.getElementById("pass-data").textContent);
+var courseCode = JSON.parse(document.getElementById("course-code").textContent);
+var courseNames = JSON.parse(document.getElementById("course-names").textContent);
+var enrollCounts = JSON.parse(document.getElementById("enroll-data").textContent);
+var passCounts = JSON.parse(document.getElementById("pass-data").textContent);
 
 // Kiểm tra giá trị của các biến
-const ctx = document.getElementById('courseChart').getContext('2d');
-const courseChart = new Chart(ctx, {
+var ctx = document.getElementById('courseChart').getContext('2d');
+var courseChart = new Chart(ctx, {
 type: 'bar',
 data: {
     labels: courseCode,
@@ -196,3 +196,4 @@ new Chart(pie_lowest, {
         }
     }
 });
+

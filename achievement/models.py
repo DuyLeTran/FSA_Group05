@@ -120,6 +120,9 @@ class PerformanceAnalytics(models.Model):
         self.save()
     class Meta:
         db_table ='achievement_performance'
+
+    def __str__(self):
+        return f'{self.user} - {self.course} - {self.score} - {self.completion_rate}'
 @receiver([post_delete,post_save],sender = CourseFinalScore)
 def update_analytics(sender, instance, **kwargs):
     

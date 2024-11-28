@@ -29,7 +29,31 @@
 {% else %}
     <!-- --------------------------- Display specific course ----------------------------- -->
     {% if display == 'specific' %}
-        {{form.course.value}}
+    <div class="container text-center">
+        <div class="row pt-2">
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Enroll</strong></p>
+                <p class="mb-0">{{context.get_specific_info.enrollment_count }}</p>
+            </div>
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Average Score</strong></p>
+                <p>{{context.get_specific_info.average_score}}</p>
+            </div>
+            <div class="col border">
+                <p style="border-bottom: 0.5px solid rgb(58, 57, 57);"><strong>Pass Rate</strong></p>
+                <p>{{context.get_specific_info.pass_rate}}%</p>
+            </div>
+        </div>
+    </div>
+    <div style="width: 70%; margin: 0 auto;">
+        <canvas id="scoreDistributionChart"></canvas>
+    </div>
+        <!-- ----------------------------- Score Distribution Chart ----------------------------- -->
+    {{ context.score_distribution|json_script:"score-distribution"}}
+
+
+
+    <script src="{% static 'js/chart-specific.js' %}"></script>
     {% else %}
     <!-- ----------------------------- Display all course ----------------------------- -->
     <div class="container text-center">
@@ -74,10 +98,10 @@
     {{ context.lowest_pass_course_name|json_script:"lowestCourseName" }}
     {{ context.pass_count_lowest|json_script:"pass-count_lowest" }}
     {{ context.in_progress_count_lowest|json_script:"in_progress-count-lowest" }}
-
+    <script src="{% static 'js/chart-global.js' %}"></script>
     {% endif %}
 {% endif %}
 
 
-<script src="{% static 'js/chart.js' %}"></script>
+
 {% endblock %}

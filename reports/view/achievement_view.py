@@ -2,7 +2,7 @@ from django.shortcuts import render, HttpResponse
 from django.db.models import Count, F, Q
 from module_group.models import ModuleGroup, Module
 from ..forms import CourseForm
-from ..function import cleaned_data, get_course_progress_and_enrollments, get_highest_percent_pass, get_lowest_percent_pass
+from ..function import *
 from course.models import Course
 from django.db.models import Q
 from course.models import Enrollment
@@ -37,13 +37,18 @@ def course_perform_report(request):
                                                            'message': message,
                                                            'all_courses':all_courses,})
         else:
+            course = course.first()
             display = 'specific'
-            
+            context = {
+                'score_distribution': get_score_distribution(course),
+                'get_specific_info': get_specific_info(course)
+            }   
             return render(request, 'achievement/course_perform_report.html', {'module_groups': module_groups,
                                                            'modules': modules,
                                                            'form': form,
                                                            'all_courses':all_courses,
-                                                           'display': display})
+                                                           'display': display,
+                                                           'context': context})
     else:
         display = 'All'
 

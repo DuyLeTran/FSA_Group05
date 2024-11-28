@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-=======
-{% extends 'base.html' %}
-
-{% block content %}
-
->>>>>>> phatpt
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,10 +6,7 @@
     <title>Activity Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-<<<<<<< HEAD
         /* All existing styles remain unchanged */
-=======
->>>>>>> phatpt
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
@@ -108,11 +98,7 @@
 
         .chart-container {
             position: relative;
-<<<<<<< HEAD
             height: 400px;
-=======
-                height: 300px;
->>>>>>> phatpt
         }
 
         canvas {
@@ -230,13 +216,10 @@
         let activityOverTimeData = {{ activity_over_time_data|safe }};
         let charts = {};
 
-<<<<<<< HEAD
         function truncateLabel(label, maxLength = 20) {
             return label.length > maxLength ? label.slice(0, maxLength) + '...' : label;
         }
 
-=======
->>>>>>> phatpt
         function consolidateActivities(labels, data) {
             const consolidated = {};
             labels.forEach((label, index) => {
@@ -254,11 +237,7 @@
 
         function createChartData(labels, data) {
             return {
-<<<<<<< HEAD
                 labels: labels.map(label => truncateLabel(label)),
-=======
-                labels: labels,
->>>>>>> phatpt
                 datasets: [{
                     data: data,
                     backgroundColor: colorPalette.slice(0, labels.length),
@@ -275,7 +254,6 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-<<<<<<< HEAD
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -299,8 +277,6 @@
                             }
                         }
                     },
-=======
->>>>>>> phatpt
                     ...options
                 }
             });
@@ -454,9 +430,4 @@
         window.addEventListener('load', initializeCharts);
     </script>
 </body>
-<<<<<<< HEAD
 </html> 
-=======
-</html>
-{% endblock %}
->>>>>>> phatpt

@@ -96,4 +96,4 @@ def delete_enrollment(request, enrollment_id):
     enrollment = get_object_or_404(Enrollment, id=enrollment_id, student=request.user)
     enrollment.delete()
     messages.success(request, f'Enrollment for {enrollment.course.course_name} deleted successfully.')
-    return redirect('enrollment:enrollment_list')
+    return redirect('group_enrollment:enrollment_list')

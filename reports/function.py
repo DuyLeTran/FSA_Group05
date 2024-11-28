@@ -1,4 +1,5 @@
-from achievement.models import UserProgress
+from django.db.models import Count, Case, When, Avg, Q
+from achievement.models import UserProgress, PerformanceAnalytics
 from course.models import Enrollment
 
 def cleaned_data(query:str):
@@ -65,5 +66,58 @@ def get_lowest_percent_pass(courses):
             output['num_pass'] = num_pass
             output['in_progress'] = num_enrollment - output['num_pass']
     return output
+def get_specific_info(course):
+    ''' Return number of enrollments, Average score, Pass rate of 1 course'''
+    enrollments = Enrollment.objects.filter(course=course)
+    enrollment_count = enrollments.count()
 
+    average_score = enrollments.aggregate(
+        avg_score=Avg('course__performanceanalytics__score', filter=Q(student__performanceanalytics__score__isnull=False))
+    )['avg_score']
+
+    # pass_count = enrollments.filter(student__userprogress__progress_percentage=100).count()
+    pass_count = UserProgress.objects.filter(course=course,progress_percentage=100).count()
+
+    pass_rate = round((pass_count / enrollment_count) * 100,2) if enrollment_count > 0 else 0
+
+    return {
+        'enrollment_count': enrollment_count,
+        'average_score': round(average_score,2),
+        'pass_rate': pass_rate
+    }
+
+def get_score_distribution(course):
+    ''' Get score distribution of specific course'''
+    # Truy vấn và tính toán số lượng điểm trong từng khoảng
+    score_distribution = PerformanceAnalytics.objects.filter(course=course).aggregate(
+        range_0_10   = Count(Case(When(score__gte=0, score__lt=10, then=1))),
+        range_10_20  = Count(Case(When(score__gte=10, score__lt=20, then=1))),
+        range_20_30  = Count(Case(When(score__gte=20, score__lt=30, then=1))),
+        range_30_40  = Count(Case(When(score__gte=30, score__lt=40, then=1))),
+        range_40_50  = Count(Case(When(score__gte=40, score__lt=50, then=1))),
+        range_50_60  = Count(Case(When(score__gte=50, score__lt=60, then=1))),
+        range_60_70  = Count(Case(When(score__gte=60, score__lt=70, then=1))),
+        range_70_80  = Count(Case(When(score__gte=70, score__lt=80, then=1))),
+        range_80_90  = Count(Case(When(score__gte=80, score__lt=90, then=1))),
+        range_90_100 = Count(Case(When(score__gte=90, score__lte=100, then=1))),
+    )
+
+    # Chuyển đổi kết quả sang định dạng phù hợp cho frontend
+    distribution = {
+        "ranges": ["0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-90", "90-100"],
+        "counts": [
+            score_distribution["range_0_10"],
+            score_distribution["range_10_20"],
+            score_distribution["range_20_30"],
+            score_distribution["range_30_40"],
+            score_distribution["range_40_50"],
+            score_distribution["range_50_60"],
+            score_distribution["range_60_70"],
+            score_distribution["range_70_80"],
+            score_distribution["range_80_90"],
+            score_distribution["range_90_100"],
+        ],
+    }
+    return distribution
+    
 

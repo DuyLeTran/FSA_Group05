@@ -1,7 +1,7 @@
 import google.generativeai as genai
 
 def AIInsightModel(score,score_history):
-    genai.configure(api_key="AIzaSyCqoUw4bZ9t6cFj7xzTgkNs_sSxcJD51Zg")
+    genai.configure(api_key="AIzaSyD_2QetHE4eB9v9haIih5kwV4-6jVfkimk")
     generation_config = {
     "temperature": 1,
     "top_p": 0.95,
