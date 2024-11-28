@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load form_filters %}
+
+{% block title %}Export Questions{% endblock %}
+
+{% block content %}
+<style>
+  .table-responsive {
+          max-height: 20rem;
+          overflow: auto;
+          display:inline-block;
+      }
+</style>
+<div class="container mt-4">
+  <h2>Export Questions - {{ course.course_code }}</h2>
+  <h5>Course Full Name: {{ course.course_name }}</h5>
+  <div class="mt-3 row gap-4">
+    <div class="col-4 align-middle">  
+      <a href="{% url 'quiz_bank:quiz_bank_course_refresh' course.id %}" class="btn btn-secondary">Back to Quiz Bank - {{course.course_code}}</a>
+    </div>
+  <div class="pt-2 pb-2 border rounded col-3 align-middle text-center">
+    <div class="mt-3 text-center">
+      <div class="text-center">
+        <h5>Total</h5>
+      </div>
+      <div class="text-center">
+        {% if not question_count %}
+        <h5>0 question</h5>
+        {% elif question_count > 1 %}
+      <h5>{{ question_count }} questions</h5>
+      {% elif question_count == 1 %}
+      <h5>1 question</h5>
+      {% endif %}
+      </div>
+      
+    </div>
+  </div>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+  <div class="mt-3 table-responsive container-fluid">
+    
+      <table class="table table-striped">
+          <thead>
+              <tr>
+                  <th class="text-center align-middle">#</th>
+                  <th class="text-center align-middle">Questions</th>
+                  <th class="text-center align-middle">Chapter</th>
+                  <th class="text-center align-middle">Answer Options</th>
+              </tr>
+          </thead>
+          <tbody>
+              {% for form in formset %}
+              <tr>
+                  <td class="align-middle">{{ forloop.counter }}</td>
+                  <td class="align-middle">{{ form.question_form.question_text }}</td>
+                  <td class="align-middle">{{ form.question_form.chapter }}</td>
+                  <td class="align-middle">
+                      <ul>
+                          {% for answer_form in form.answer_form %}
+                          <li>
+                              {{ answer_form.option_text }}
+                              {{ answer_form.is_correct }}
+                          </li>
+                          {% endfor %}
+                      </ul>
+                  </td>
+              </tr>
+              {% endfor %}
+          </tbody>
+      </table>
+    
+    
+    
+  </div>
+  <div class="mt-2">
+      {% csrf_token %}
+      <button class="btn btn-primary" type="submit">Confirm Edit</button>
+      <a href="{% url 'quiz_bank:quiz_bank_course_refresh' course.id %}" class="btn btn-secondary">Back to Quiz Bank - {{ course.course_code }}</a>
+    
+  </div>
+</form>
+</div>
+{% endblock %}

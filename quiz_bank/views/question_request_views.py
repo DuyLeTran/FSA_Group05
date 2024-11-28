@@ -88,3 +88,39 @@ def edit_question(request, course_id, question_id):
                                                   'question_form':question_form,
                                                   'course_id':course_id,
                                                   'question_id': question_id})
+
+# def edit_multiple_question(request, course_id):
+#     from django.http import HttpResponse
+#     from ..forms import AnswerForm, QuestionForm
+#     course = Course.objects.get(id=course_id)
+#     question_queryset = QuizBank.objects.filter(course_id=course_id)
+#     formset = QuestionFormset(queryset=question_queryset)
+#     if request.method == 'POST':
+#         formset = QuestionFormset(request.POST)
+#         if formset.is_valid():
+#             formset.save()
+#     else:
+#         formset = QuestionFormset(queryset=question_queryset)
+#     return render(request, 'edit_multiple_question.html', context={'formset': formset,
+#                                                                    'question_count':len(question_queryset),
+#                                                                    'course': course})
+
+def edit_multiple_question(request, course_id):
+    from django.http import HttpResponse, HttpResponseNotFound
+    from ..forms import AnswerForm, QuestionForm
+    # course = Course.objects.get(id=course_id)
+    # question_queryset = QuizBank.objects.filter(course_id=course_id)
+    # formset: list[dict] = []
+    # for question in question_queryset:
+    #     answer_form = [AnswerForm(instance=answer) for answer in Answer.objects.filter(question_id=question.id)]
+    #     question_form = QuestionForm(instance=question)
+    #     formset.append(dict({
+    #         'question_form': question_form,
+    #         'answer_form': answer_form
+    #     }))
+    # if request.method == 'POST':
+    #     print(request.POST)
+    # return render(request, 'edit_multiple_question.html', context={'formset': formset,
+    #                                                                'question_count':len(question_queryset),
+    #                                                                'course': course})
+    return HttpResponseNotFound('Not yet implemented.')

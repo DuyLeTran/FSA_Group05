@@ -2,6 +2,7 @@ from django import forms
 from course.models import Course
 from quiz.models import Question, Quiz, AnswerOption
 from .models import QuizBank, Answer, Chapter
+from django.forms.models import inlineformset_factory
 
 class QuestionCourseForm(forms.ModelForm):
     question_type = forms.ChoiceField(choices=[('MCQ', 'MCQ'), ('TF', 'TF'), ('TEXT', 'TEXT')],
@@ -111,3 +112,18 @@ class GetRandomForm(forms.ModelForm):
 
 class JSONForm(forms.Form):
     json_file = forms.FileField(label='Upload JSON')
+
+AnswerOptionFormset = inlineformset_factory(
+    parent_model=QuizBank,
+    model=Answer,
+    form=AnswerForm,
+    extra=0,  # Adjust 'extra' to control initial empty forms
+)
+
+QuestionFormset = inlineformset_factory(
+    parent_model=Course,
+    model=QuizBank,
+    form=QuestionForm,
+    formset=AnswerOptionFormset,
+    extra=0,  # Adjust 'extra' to control initial empty forms
+)

@@ -15,6 +15,7 @@ urlpatterns = [
     path('delete_selection/<int:course_id>/', question_request_views.delete_selected_question, name='delete_selected_question'),
     path('delete_selection/<int:course_id>/confirm/', question_request_views.delete_selected_confirm, name='delete_selected_confirm'),
     path('add_question/<int:course_id>/', question_request_views.add_question, name='add_question'),
+    path('edit_question/<int:course_id>/', question_request_views.edit_multiple_question, name='edit_multiple_question'),
 
     path('random/', bank_request_views.random_question_before_add_quiz, name='random_question_before_add_quiz'),
     path('random/refresh/<int:course_id>/<int:number_of_questions>', bank_request_views.random_question_refresh, name='random_question_refresh'),
