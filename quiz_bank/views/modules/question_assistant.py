@@ -5,7 +5,10 @@ from django.forms.models import modelformset_factory
 from django.forms import formset_factory
 from dataclasses import dataclass, field
 
+from typing import Union
 from cdifflib import CSequenceMatcher
+import uuid
+from itertools import combinations
 
 OPTION_LIST = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
 FROM_OPTION_TO_INDEX = dict(list(zip(OPTION_LIST, [i for i in range(0, 7)])))
@@ -19,7 +22,7 @@ INIT_QUESTION_DICT = {
 
 @dataclass(slots=True, kw_only=True)
 class Question:
-    id: int
+    id: Union[int, str]
     question: str
     answer: list[str] = field(default_factory=list)
     key: list[str] = field(default_factory=list)
@@ -217,16 +220,19 @@ class QuestionSelectionHandler():
         return question_queryset
     
 class QuestionCompareModule():
-    def __init__(self, questions_list: list[Question]):
-        self.questions_list: list[Question] = questions_list
+    def __init__(self):
+        pass
 
     def __similarity_filter(self, similarity:tuple[float, tuple[int, int]]) -> bool:
         return similarity[0] > 0.75
 
-    def __get_id_and_question_tuple(self) -> tuple[int, str]:
+    def __get_id_and_question_tuple(self) -> tuple[int|str, str]:
         return tuple(map(lambda x: tuple((x.id, x.question)), self.questions_list))
     
-    def __compare_two_question(self, questions:tuple[int, str]) -> tuple[float, tuple[int, int]]:
+    def __combine_outer_question(self, question: Question):
+        return tuple(map(lambda x: ((question.id, ), x.question_text), self.questions_list))
+    
+    def __compare_two_questions(self, questions:tuple[int|str, str]) -> tuple[float, tuple[int|str, int]]:
 
         _ids = tuple(map(lambda x: x[0], questions))
         questions = tuple(map(lambda x: x[1], questions))
@@ -235,20 +241,25 @@ class QuestionCompareModule():
 
         return tuple((model.ratio(), tuple(_ids)))
     
-    def compare(self) -> tuple[float, tuple[int, int]] | tuple[tuple[float, tuple[int, int]]] | None:
+    def get_questions_list(self, questions_list: list[Question]|list[QuizBank]):
+        self.questions_list: list[Question]|list[QuizBank] = questions_list
+    
+    def inner_compare(self) -> tuple[float, tuple[int, int]] | tuple[tuple[float, tuple[int, int]]] | None:
         if len(self.questions_list) == 2:
-            return self.__compare_two_question(self.__get_id_and_question_tuple())
+            return self.__compare_two_questions(self.__get_id_and_question_tuple())
         elif len(self.questions_list) > 2:
-            from itertools import combinations
-
             combined_questions_list = tuple(combinations(self.__get_id_and_question_tuple(), 2))
-
-            return tuple((self.__compare_two_question(questions) for questions in combined_questions_list))
+            return tuple((self.__compare_two_questions(questions) for questions in combined_questions_list))
         else:
             return None
+        
+    def outer_compare(self, question: Question):
+        combined_questions_list = self.__combine_outer_question(question)
+
+        return tuple((self.__compare_two_questions(questions) for questions in combined_questions_list))
             
     def get_similar_ids(self) -> tuple[int]:
-        data = self.compare()
+        data = self.inner_compare()
         if not data:
             return ()
         elif len(self.questions_list) == 2:
