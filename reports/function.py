@@ -82,7 +82,7 @@ def get_specific_info(course):
 
     return {
         'enrollment_count': enrollment_count,
-        'average_score': round(average_score,2),
+        'average_score': round(average_score,2) if average_score is not None else 0,
         'pass_rate': pass_rate
     }
 
@@ -121,3 +121,14 @@ def get_score_distribution(course):
     return distribution
     
 
+from django.db.models import F
+
+def get_score_completion_data(course_id):
+    # Lấy dữ liệu từ database
+    data = (
+        PerformanceAnalytics.objects.filter(course_id=course_id)
+        .exclude(completion_rate=None)  # Loại bỏ giá trị None
+        .exclude(score=None)  # Loại bỏ giá trị None
+        .values("score", "completion_rate")
+    )
+    return list(data)  # Trả về danh sách các điểm và tỷ lệ hoàn thành

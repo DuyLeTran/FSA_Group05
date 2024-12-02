@@ -41,7 +41,9 @@ def course_perform_report(request):
             display = 'specific'
             context = {
                 'score_distribution': get_score_distribution(course),
-                'get_specific_info': get_specific_info(course)
+                'get_specific_info': get_specific_info(course),
+                'get_score_completion_data': get_score_completion_data(course),
+                'course_name': course.course_name
             }   
             return render(request, 'achievement/course_perform_report.html', {'module_groups': module_groups,
                                                            'modules': modules,

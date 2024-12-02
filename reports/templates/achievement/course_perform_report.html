@@ -45,13 +45,24 @@
             </div>
         </div>
     </div>
-    <div style="width: 70%; margin: 0 auto;">
-        <canvas id="scoreDistributionChart"></canvas>
+    <!-- Biểu đồ scoreDistributionChart chiếm 100% chiều rộng -->
+    <!-- Biểu đồ scoreDistributionChart với chiều cao nhỏ hơn -->
+    <div style="width: 80%; margin: 0 auto;">
+        <canvas id="scoreDistributionChart" style="height: 100px;"></canvas> <!-- Chiều cao được giảm -->
+    </div>
+    <div style="display: flex; justify-content: space-between; margin: 0 auto;">
+        <div style="width: 60%; text-align: center;">
+            <canvas id="scoreCompletionChart"></canvas>
+        </div>
+        <div style="width: 60%; text-align: center;">
+            <canvas id="courseStatsChart"></canvas>
+        </div>
     </div>
         <!-- ----------------------------- Score Distribution Chart ----------------------------- -->
     {{ context.score_distribution|json_script:"score-distribution"}}
-
-
+    {{ context.get_score_completion_data|json_script:"score-completion"}}
+    {{ context.get_specific_info|json_script:"specific-info"}}
+    {{ context.course_name|json_script:"course-name"}}
 
     <script src="{% static 'js/chart-specific.js' %}"></script>
     {% else %}
