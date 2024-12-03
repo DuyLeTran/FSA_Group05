@@ -36,7 +36,7 @@ def monitor_activity_limit(request):
 
 @login_required
 def activity_view(request):
-    monitor_activity_limit(request)
+    # monitor_activity_limit(request)
     
     # Get search and date filter parameters
     search_query = request.GET.get('search', '')
