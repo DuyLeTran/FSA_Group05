@@ -61,7 +61,7 @@ def export_progress_notification(request):
     # Fetch all users and write to the Excel file
     for progress_notification in ProgressNotification.objects.all():
         try:    
-            worksheet.append([str(progress_notification.course), str(progress_notification.username), progress_notification.notification_message, str(progress_notification.notification_date)])
+            worksheet.append([str(progress_notification.course), str(progress_notification.user), progress_notification.notification_message, str(progress_notification.notification_date)])
         except Exception as e:
             print(e)
     
@@ -90,22 +90,21 @@ def import_progress_notification(request):
                     from user.models import User
                     from course.models import Course
                     username_id = User.objects.get(username=username).id
-                    course_id = Course.objects.get(course=course).id
+                    try:
+                        course_id = Course.objects.get(course_code=course).id
+                    except:
+                        course_id = Course.objects.get(course_name=course).id
 
                     print(username_id, course_id)
 
-                    if not ProgressNotification.objects.filter(username_id=username_id, course=course, notification_message=notification_message).exists():
-                        # Create and save the new user
-                        ProgressNotification.objects.create(
-                            username_id=username_id,
-                            course_id=course_id,
-                            notification_message=notification_message,
-                        )
-                        notification_imported += 1
-                        print(f"notification {username} created")  # Debugging
-                    else:
-                        messages.warning(request, f"notification '{username}' already exists. Skipping.")
-                        print(f"notification {username} already exists")  # Debugging
+                    # Create and save the new user
+                    ProgressNotification.objects.create(
+                        user_id=username_id,
+                        course_id=course_id,
+                        notification_message=notification_message,
+                    )
+                    notification_imported += 1
+                    print(f"notification {username} created")  # Debugging
 
                 # Feedback message
                 if notification_imported > 0:
