@@ -210,5 +210,7 @@ def ai_insights(request):
         'chart_name': chart_name,
         'is_valid': is_valid,
         'dict_color': dict_color,
-        'color': color
+        'color': color,
+        'module_groups': module_groups,
+        'modules': modules,
     })
