@@ -12,7 +12,10 @@ from .modules.export_assistant import ExportJSON
 from ..forms import *
 from ..models import *
 from pprint import pprint
+from module_group.models import ModuleGroup, Module
 
+module_groups = ModuleGroup.objects.all()
+modules = Module.objects.all()
 # Create your views here.
 def quiz_bank_view_refresh(request):
     request.session.pop('search_form', None)
@@ -61,7 +64,9 @@ def quiz_bank_view(request):
                                                                'page_obj':page_obj,
                                                                'search_form': search_form, 
                                                                'courses': all_courses,
-                                                               'search_form_data': search_form_data})
+                                                               'search_form_data': search_form_data,
+                                                               'module_groups': module_groups,
+                                                               'modules': modules,})
             request.session.pop('search_form', None)
             url = f'show/{course_id}/'
             return redirect(url)
@@ -75,7 +80,9 @@ def quiz_bank_view(request):
                                                    'page_obj':page_obj,
                                                    'search_form': search_form, 
                                                    'courses': all_courses,
-                                                   'search_form_data': search_form_data})
+                                                   'search_form_data': search_form_data,
+                                                   'module_groups': module_groups,
+                                                   'modules': modules,})
 
 def quiz_bank_course_refresh(request, course_id):
     request.session.pop('filter_form', None)
@@ -136,7 +143,9 @@ def quiz_bank_course(request, course_id):
                                                                         'filter_form_data': filter_form_data,
                                                                         'chap': chap,
                                                                         'added':added,
-                                                                        'deleted':deleted})
+                                                                        'deleted':deleted,
+                                                                        'module_groups': module_groups,
+                                                                        'modules': modules,})
             json_data = QuestionHandler().get_random_question(course_id, number_of_questions)
             json_data = [asdict(question) for question in json_data]
             request.session['json_data'] = json_data
@@ -156,7 +165,9 @@ def quiz_bank_course(request, course_id):
                                                                     'filter_form_data': filter_form_data,
                                                                     'chap': chap,
                                                                     'added':added,
-                                                                    'deleted':deleted})
+                                                                    'deleted':deleted,
+                                                                    'module_groups': module_groups,
+                                                                    'modules': modules,})
     else:    
         return render(request, 'quiz_bank_course.html', {'form':form,
                                                         'course': course, 
@@ -166,7 +177,9 @@ def quiz_bank_course(request, course_id):
                                                         'filter_form_data': filter_form_data,
                                                         'chap': chap,
                                                         'added':added,
-                                                        'deleted':deleted})
+                                                        'deleted':deleted,
+                                                        'module_groups': module_groups,
+                                                        'modules': modules,})
     
 def random_question_before_add_quiz(request):
     get_random_form = GetRandomForm()
@@ -228,7 +241,9 @@ def random_question_view(request, course_id:int, number_of_questions:int):
                                                                                     'course': course,
                                                                                     'is_add': is_add,
                                                                                     'number_of_questions_form':  number_of_questions_form,
-                                                                                    'is_valid': False})
+                                                                                    'is_valid': False,
+                                                                                    'module_groups': module_groups,
+                                                                                    'modules': modules,})
                 json_data = QuestionHandler().get_random_question(course_id, number_of_questions)
                 json_data = [asdict(question) for question in json_data]
                 request.session['json_data'] = json_data
@@ -237,7 +252,9 @@ def random_question_view(request, course_id:int, number_of_questions:int):
                                                                              'course': course,
                                                                              'is_add': is_add,
                                                                              'number_of_questions_form':  number_of_questions_form,
-                                                                             'is_valid': True})
+                                                                             'is_valid': True,
+                                                                             'module_groups': module_groups,
+                                                                             'modules': modules,})
             elif 'export-json' in request.POST:
                 if is_add:
                     request.session['json_data'] = deepcopy(json.dumps(question_list))
@@ -251,7 +268,9 @@ def random_question_view(request, course_id:int, number_of_questions:int):
                                                                      'course': course,
                                                                      'is_add': is_add,
                                                                      'number_of_questions_form': number_of_questions_form,
-                                                                     'is_valid': True})
+                                                                     'is_valid': True,
+                                                                     'module_groups': module_groups,
+                                                                     'modules': modules,})
     
     number_of_questions_form = NumberOfQuestionsForm()
     course = Course.objects.get(id=course_id)
