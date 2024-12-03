@@ -55,13 +55,13 @@ def export_progress_notification(request):
 
     
     # Define the columns
-    columns = ['course','username','notification_message','notification_date']
+    columns = ['course','username','notification_message','notification_date','is_read']
     worksheet.append(columns)
     
     # Fetch all users and write to the Excel file
     for progress_notification in ProgressNotification.objects.all():
         try:    
-            worksheet.append([str(progress_notification.course), str(progress_notification.user), progress_notification.notification_message, str(progress_notification.notification_date)])
+            worksheet.append([str(progress_notification.course), str(progress_notification.user), progress_notification.notification_message, str(progress_notification.notification_date), str(progress_notification.is_read)])
         except Exception as e:
             print(e)
     
@@ -83,8 +83,7 @@ def import_progress_notification(request):
                     username = row.get('username')
                     course = str(row.get("course"))
                     notification_message = row.get("notification_message")
-
-                    print(f"Processing row: {username}, {course}, {notification_message}")  # Debugging
+                    is_read = row.get("is_read")
 
                     # Check if the user already exists
                     from user.models import User
@@ -102,9 +101,9 @@ def import_progress_notification(request):
                         user_id=username_id,
                         course_id=course_id,
                         notification_message=notification_message,
+                        is_read = is_read
                     )
                     notification_imported += 1
-                    print(f"notification {username} created")  # Debugging
 
                 # Feedback message
                 if notification_imported > 0:
