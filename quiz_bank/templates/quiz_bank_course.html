@@ -57,6 +57,32 @@
             </ul>
           </div>
             <a href="{% url 'quiz_bank:quiz_bank_view_refresh' %}" class="btn btn-secondary">Back to Quiz Bank - Home</a>
+            {% if added is not None %}
+            {% if not added.question_added %}
+            <div class="alert alert-danger">
+              <span>Added Question: {{ added.question_added }}</span>
+            </div>
+            {% elif added.answer_added_failed > 0 %}
+            <div class="alert alert-danger">
+              <span>Added Question: {{ added.question_added }} - Failed Added Answer(s): {{ added.answer_added_failed }}</span>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+              <span>Question Added Successfully</span>
+            </div>
+            {% endif %}
+            {% endif %}
+            {% if deleted is not None %}
+            {% if deleted.deleted_question > 1 %}
+            <div class="alert alert-success">
+              <span>{{ deleted.deleted_question }} Questions Deleted Successfully</span>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+              <span>{{ deleted.deleted_question }} Question Deleted Successfully</span>
+            </div>
+            {% endif %}
+            {% endif %}
     </div>
     <div class="pt-2 pb-2 border rounded col-3 align-middle text-center">
       <div class="mt-3 text-center">

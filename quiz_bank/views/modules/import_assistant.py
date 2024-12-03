@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.http import HttpResponse
 from django.contrib import messages
 from ...forms import *
+from .question_assistant import QuestionCompareModule
 
 OPTION_LIST = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
 FROM_OPTION_TO_INDEX = dict(list(zip(OPTION_LIST, [i for i in range(0, 7)])))
@@ -13,6 +14,16 @@ FROM_OPTION_TO_INDEX = dict(list(zip(OPTION_LIST, [i for i in range(0, 7)])))
 class ImportPackage():
     def __init__(self):
         pass
+
+    def __compare(self, 
+                  course_id:int, 
+                  question:str):
+        compare_module = QuestionCompareModule()
+        questions_list = QuizBank.objects.filter(course_id=course_id)
+
+        compare_module.get_questions_list(questions_list)
+        compare_module.inner_compare()
+
     def __insert_question(self,
                           request, 
                           question:str, 
@@ -115,6 +126,8 @@ class ImportPackage():
             transtated_key = [str(item) for item in transtated_key]
             key_list = [i in transtated_key for i in answer_list]
             print(f"Processing question: {question}")
+
+
             
             self.__insert_question_and_answer(request,
                                               course_id,
