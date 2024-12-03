@@ -6,15 +6,22 @@ from django.contrib import messages
 import pandas as pd
 import openpyxl
 from django.http import HttpResponse
+from module_group.models import ModuleGroup,Module
 
+module_groups = ModuleGroup.objects.all()
+modules = Module.objects.all()
 # User views
 def progress_notification_list(request):
     progress_notification = ProgressNotification.objects.all()
-    return render(request, 'progress_notification_list.html', {'progress_notification': progress_notification})
+    return render(request, 'progress_notification_list.html', {'progress_notification': progress_notification,
+                                                               'module_groups': module_groups,
+                                                               'modules':modules})
 
 def progress_notification_detail(request, id):
     progress_notification = ProgressNotification.objects.get(id=id)
-    return render(request, 'progress_notification_detail.html', {'progress_notification': progress_notification})
+    return render(request, 'progress_notification_detail.html', {'progress_notification': progress_notification,
+                                                               'module_groups': module_groups,
+                                                               'modules':modules})
 
 def progress_notification_add(request):
     if request.method == 'POST':
@@ -24,7 +31,9 @@ def progress_notification_add(request):
             return redirect('progress_notification:progress_notification_list')
     else:
         form = ProgressNotificationForm()
-    return render(request, 'progress_notification_form.html', {'form': form})
+    return render(request, 'progress_notification_form.html', {'form': form,
+                                                               'module_groups': module_groups,
+                                                               'modules':modules})
 
 def progress_notification_edit(request, id):
     progress_notification = get_object_or_404(ProgressNotification, id=id)
@@ -35,14 +44,18 @@ def progress_notification_edit(request, id):
             return redirect('progress_notification:progress_notification_list')
     else:
         form = ProgressNotificationForm(instance=progress_notification)
-    return render(request, 'progress_notification_form.html', {'form': form})
+    return render(request, 'progress_notification_form.html', {'form': form,
+                                                               'module_groups': module_groups,
+                                                               'modules':modules})
 
 def progress_notification_delete(request, id):
     notification = ProgressNotification.objects.get(id=id)
     if request.method == 'POST':
         notification.delete()
         return redirect('progress_notification:progress_notification_list')
-    return render(request, 'progress_notification_confirm_delete.html', {'notification': notification})
+    return render(request, 'progress_notification_confirm_delete.html', {'notification': notification,
+                                                               'module_groups': module_groups,
+                                                               'modules':modules})
 
 def export_progress_notification(request):
     # Create a workbook and add a worksheet
