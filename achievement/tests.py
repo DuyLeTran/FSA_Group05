@@ -105,3 +105,44 @@ class AIInsightsModelTest(TestCase):
 
 
 
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from achievement.models import UserProgress
+from course.models import Course
+from django.utils.timezone import now
+from decimal import Decimal
+
+User = get_user_model()
+
+class UserProgressModelTest(TestCase):
+    def setUp(self):
+        # Tạo dữ liệu mẫu cho test
+        self.user = User.objects.create_user(email="testuser@example.com", password="password123", username='testuser')
+        self.course = Course.objects.create(course_code="COURSE101", course_name="Introduction to Testing")
+
+    def test_create_user_progress(self):
+        # Kiểm tra có thể tạo đối tượng UserProgress
+        progress = UserProgress.objects.create(user=self.user, course=self.course, progress_percentage=50.25)
+        self.assertEqual(progress.user, self.user)
+        self.assertEqual(progress.course, self.course)
+        self.assertEqual(progress.progress_percentage, Decimal("50.25"))
+
+    def test_unique_together_constraint(self):
+        # Kiểm tra ràng buộc unique_together
+        UserProgress.objects.create(user=self.user, course=self.course, progress_percentage=10.00)
+        with self.assertRaises(Exception):  # IntegrityError or ValidationError
+            UserProgress.objects.create(user=self.user, course=self.course, progress_percentage=20.00)
+
+    def test_default_progress_percentage(self):
+        # Kiểm tra giá trị mặc định của progress_percentage
+        progress = UserProgress.objects.create(user=self.user, course=self.course)
+        self.assertEqual(progress.progress_percentage, Decimal("0"))
+
+    def test_last_accessed_field_updates(self):
+        # Kiểm tra last_accessed được cập nhật tự động
+        progress = UserProgress.objects.create(user=self.user, course=self.course)
+        initial_last_accessed = progress.last_accessed
+        progress.progress_percentage = 75.00
+        progress.save()
+        self.assertNotEqual(progress.last_accessed, initial_last_accessed)
+        self.assertGreater(progress.last_accessed, initial_last_accessed)
