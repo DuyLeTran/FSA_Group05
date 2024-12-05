@@ -175,8 +175,8 @@ class UserProgressModelTest(TestCase):
         progress = UserProgress.objects.filter(course=self.assessment.course).exists()
         self.assertTrue(progress)
 
-    # def test_post_delete_studentAttemptAssessment(self):
-    #     UserProgress.objects.filter(user=self.user, course=self.course).delete()
-    #     self.attempt.delete()
-    #     progress = UserProgress.objects.filter(course=self.assessment.course).exists()
-    #     self.assertTrue(progress)
+    def test_post_delete_studentAttemptAssessment(self):
+        UserProgress.objects.filter(user=self.user, course=self.course).delete()
+        self.attempt.delete()
+        progress = UserProgress.objects.filter(course=self.assessment.course).exists()
+        self.assertTrue(progress)
