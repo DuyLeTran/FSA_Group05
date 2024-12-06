@@ -6,7 +6,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% load static %}
     <style>
         body, html {
             margin: 0;
@@ -14,17 +13,6 @@
             width: 105.8%;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
-        .snowflake {
-            font-family: Arial, sans-serif;
-            position: fixed;
-            color: #fff;
-            pointer-events: none;
-            z-index: 1;
-            opacity: 0;
-            transition: opacity 1s;
-        }
-
         .container {
             display: flex;
             flex-direction: column;
@@ -570,7 +558,18 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <ul class="nav nav-tabs">
+        <li class="nav-item">
+            <a class="nav-link active" href="{% url 'activity:activity_view' %}">View</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'activity:activity_dashboard_view' %}">Dashboard</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'activity:fetch_activity_logs' %}">Fetch</a>
+        </li>
+    </ul>
+    <div>
         <div class="toggle-container">
             <div class="button-container">
                 <button id="activityButton" class="button button--activity">
@@ -634,14 +633,6 @@
                     </div>
                 </div>
             </button>
-            <audio id="backgroundMusic" preload="auto" loop>
-                <source src="{% static 'jingle-bells-christmas-classic-piano-melody_100bpm_G_major.wav' %}" type="audio/mp3">
-                Your browser does not support the audio element.
-            </audio>
-            <button id="audioControl" style="background-color: #35DBB2; color: #ebf1ee; border: none; border-radius: 25px; padding: 10px 20px; cursor: pointer; font-size: 1rem;">
-                Play Music
-            </button>
-
         </div>
         <iframe id="contentFrame" src="{% url 'activity:activity_dashboard_view' %}" title="Content Frame"></iframe>
     </div>
@@ -661,160 +652,6 @@
             contentFrame.src = "{% url 'activity:activity_dashboard_view' %}";
             dashboardButton.setAttribute('aria-pressed', 'true');
             activityButton.setAttribute('aria-pressed', 'false');
-        });
-
-        let ww = 0;
-        let wh = 0;
-        const snowflakes = ["\u2744", "\u2745", "\u2746","\u26c4","\u26c7"]; // Snowflake characters
-        let flakeCount = 0;
-        const maxFlakes = 200;
-        let isPlaying = false;
-        let animationFrameId = null;
-
-        function init() {
-            updateViewportSize();
-            window.addEventListener("resize", updateViewportSize);
-        }
-
-        function updateViewportSize() {
-            ww = window.innerWidth;
-            wh = window.innerHeight;
-        }
-
-        function createSnowflake() {
-            if (flakeCount >= maxFlakes) return;
-
-            const snowflake = document.createElement("span");
-            snowflake.className = "snowflake";
-            snowflake.textContent = snowflakes[Math.floor(Math.random() * snowflakes.length)];
-
-            const size = Math.random() * 20 + 10;
-            const startX = Math.random() * ww;
-            const startY = -size; // Start above the viewport
-            const speed = Math.random() * 1 + 0.5;
-            const sway = Math.random() * 2 - 1;
-
-            Object.assign(snowflake.style, {
-                position: "fixed",
-                top: `${startY}px`,
-                left: `${startX}px`,
-                fontSize: `${size}px`,
-                color: "#fff",
-                pointerEvents: "none",
-                zIndex: "1",
-                opacity: "0",
-                textShadow: "0 0 5px rgba(255, 255, 255, 0.7)",
-            });
-
-            snowflake.dataset.speed = speed.toString();
-            snowflake.dataset.sway = sway.toString();
-            snowflake.dataset.x = startX.toString();
-            snowflake.dataset.y = startY.toString();
-
-            document.body.appendChild(snowflake);
-            flakeCount++;
-
-            // Trigger reflow and start fade-in
-            snowflake.offsetHeight;
-            snowflake.style.opacity = (Math.random() * 0.6 + 0.4).toString();
-            snowflake.style.transition = "opacity 1s";
-        }
-
-        function moveSnowflakes() {
-            const snowflakes = document.querySelectorAll(".snowflake");
-
-            snowflakes.forEach((flake) => {
-                let x = parseFloat(flake.dataset.x);
-                let y = parseFloat(flake.dataset.y);
-                const speed = parseFloat(flake.dataset.speed);
-                const sway = parseFloat(flake.dataset.sway);
-
-                y += speed;
-                x += Math.sin(y / 50) * sway;
-
-                if (y > wh && !isPlaying) {
-                    flake.remove();
-                    flakeCount--;
-                } else {
-                    if (y > wh && isPlaying) {
-                        y = -parseFloat(flake.style.fontSize);
-                        x = Math.random() * ww;
-                    }
-
-                    flake.dataset.x = x.toString();
-                    flake.dataset.y = y.toString();
-                    flake.style.top = `${y}px`;
-                    flake.style.left = `${x}px`;
-                }
-            });
-
-            if (flakeCount < maxFlakes && isPlaying) {
-                createSnowflake();
-            }
-
-            if (isPlaying || document.querySelectorAll(".snowflake").length > 0) {
-                animationFrameId = requestAnimationFrame(moveSnowflakes);
-            } else {
-                animationFrameId = null;
-            }
-        }
-
-        function startSnowfall() {
-            isPlaying = true;
-            if (!animationFrameId) {
-                moveSnowflakes();
-            }
-        }
-
-        function stopSnowfall() {
-            isPlaying = false;
-            // Snowflakes will continue to fall until they reach the bottom
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const audio = document.getElementById('backgroundMusic');
-            const audioControl = document.getElementById('audioControl');
-
-            init(); // Initialize snowfall parameters
-
-            audioControl.addEventListener('click', function() {
-                if (audio.paused) {
-                    audio.play().then(() => {
-                        audioControl.textContent = 'Pause Music';
-                        startSnowfall();
-                    }).catch((error) => {
-                        console.error('Error playing audio:', error);
-                        alert('Failed to play audio. Please check your browser settings.');
-                    });
-                } else {
-                    audio.pause();
-                    audioControl.textContent = 'Play Music';
-                    stopSnowfall();
-                }
-            });
-
-            audio.addEventListener('playing', function() {
-                audioControl.textContent = 'Pause Music';
-            });
-
-            audio.addEventListener('pause', function() {
-                audioControl.textContent = 'Play Music';
-            });
-
-            audio.addEventListener('ended', function() {
-                audioControl.textContent = 'Play Music';
-                stopSnowfall();
-            });
-
-            // Check if the audio file is actually loaded
-            audio.addEventListener('loadeddata', function() {
-                console.log('Audio file loaded successfully');
-            });
-
-            audio.addEventListener('error', function(e) {
-                console.error('Error loading audio file:', e);
-                alert('Failed to load audio file. Please check the file path and server configuration.');
-            });
         });
     </script>
 </body>
