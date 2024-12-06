@@ -1,0 +1,745 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Book Search Section -->
+{% load static %}
+<div class="search-section text-center py-4" style="background-color: rgba(52, 152, 219, 0.7); border-radius: 10px; margin-top: -1.1rem; position: relative; z-index: 0;">
+    <h1 style="color:#ebf1ee; margin-left:-20%;">Book Search</h1>
+    <form method="GET" action="{% url 'book:book_search' %}" style="display: inline-block; margin-top: 10px;" id="search-form">
+        <div style="display: inline-block; position: relative;margin-left:-100%;">
+            <input type="text" name="q" placeholder="Search for books..." value="{{ query }}" required style="padding: 10px 15px; width: 300px; border: 1px solid #3498db; border-radius: 25px; font-size: 1rem;">
+            <button type="submit" style="padding: 10px 20px; position: absolute; right: -90px; top: 0; background-color: #35DBB2; color: #ebf1ee; border: none; border-radius: 25px; cursor: pointer; font-size: 1rem;">Search</button>
+        </div>
+        
+        <!-- Radio buttons for selecting book type -->
+        <div style="margin-top: 10px;margin-left:-90%;">
+            <input type="radio" id="free" name="book_type" value="free" {% if request.GET.book_type == "free" or not request.GET.book_type %}checked{% endif %}>
+            <label for="free" style="color:#ebf1ee;">Free Books</label>
+
+            <input type="radio" id="paid" name="book_type" value="paid" {% if request.GET.book_type == "paid" %}checked{% endif %}>
+            <label for="paid" style="color:#ebf1ee;">Paid Books</label>
+        </div>
+    </form> 
+
+    <!-- Loading Spinner (moved inside search-section) -->
+    <div id="loading-spinner" style="display:none; margin-top: 20px;">
+        <div class="spinner-container">
+            <div class="spinner"></div>
+            <div class="spinner-text">Loading</div>
+        </div>
+    </div>
+</div>
+
+<div class="audio-control" style="relative; top: 10px; right: 10px; z-index: 1000;">
+    <audio id="backgroundMusic" preload="auto" loop>
+        <source src="{% static 'jingle-bells-christmas-classic-piano-melody_100bpm_G_major.wav' %}" type="audio/mp3">
+        Your browser does not support the audio element.
+    </audio>
+    <button id="audioControl" style="background-color: #35DBB2; color: #ebf1ee; border: none; border-radius: 25px; padding: 10px 20px; cursor: pointer; font-size: 1rem;">
+        Play Music
+    </button>
+</div>
+
+
+<!-- Snowman -->
+<div id="snowman" class="snowman">
+    <div class="snowman-body"></div>
+    <div class="snowman-head"></div>
+    <div class="snowman-eye left"></div>
+    <div class="snowman-eye right"></div>
+    <div class="snowman-nose"></div>
+    <div class="snowman-buttons"></div>
+</div>
+
+<!-- Book Results Section -->
+<div id="book-results" class="mt-4">
+    {% if query %}
+        <h2 style="text-align: center;">Book Search Results for "{{ query }}"</h2>
+    {% endif %}
+
+    {% if books %}
+        <div class="book-grid">
+        {% for book in books %}
+            <div class="book-card">
+                <div class="book-cover">
+                    {% if book.thumbnail %}
+                        <img src="{{ book.thumbnail }}" alt="Book cover of {{ book.title }}" />
+                    {% else %}
+                        <div class="no-image">No image available</div>
+                    {% endif %}
+                </div>
+                <div class="book-info">
+                    <h3 class="book-title">{{ book.title }}</h3>
+                    <div class="book-details">
+                        <p class="author"><strong>Author(s):</strong> {{ book.authors|join:", " }}</p>
+                        <p class="publisher"><strong>Publisher:</strong> {{ book.publisher }}</p>
+                        <p class="published-date"><strong>Published:</strong> {{ book.publishedDate }}</p>
+                    </div>
+                    <div class="book-description">
+                        <p>{{ book.description|truncatechars:150 }}</p>
+                    </div>
+                    <div class="book-links">
+                        <a href="{{ book.infoLink }}" target="_blank" class="btn btn-info">More Info</a>
+                        {% if book.previewLink %}
+                            <a href="{{ book.previewLink }}" target="_blank" class="btn btn-preview">Preview</a>
+                        {% endif %}
+                        {% if book.description|length > 150 %}
+                            <a href="#" class="btn read-more" data-title="{{ book.title }}" data-description="{{ book.description }}">Read More</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </div>
+    {% else %}
+        <div style="background-color: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 8px; max-width: 600px; margin: 0 auto;">
+            <h3 style="margin: 0 0 10px 0;">No books found for "{{ query }}"</h3>
+            <p>Please try a different search term.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal Structure -->
+<div class="modal fade" id="bookModal" tabindex="-1" aria-labelledby="bookModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-title">Book Title</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-description">Book Description</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination Controls -->
+<div style="text-align: center; margin-top: 20px;">
+    <div class="pagination">
+        {% if books.has_previous %}
+            <a href="?q={{ query|urlencode }}&book_type={{ book_type }}&page=1" class="page-link">&laquo; First</a>
+            <a href="?q={{ query|urlencode }}&book_type={{ book_type }}&page={{ books.previous_page_number }}" class="page-link">Previous</a>
+        {% else %}
+            <span class="page-link disabled">&laquo; First</span>
+            <span class="page-link disabled">Previous</span>
+        {% endif %}
+
+        {% for page_num in paginator.page_range %}
+            {% if page_num >= books.number|add:-5 and page_num <= books.number|add:5 %}
+                {% if page_num == books.number %}
+                    <span class="page-link active">{{ page_num }}</span>
+                {% else %}
+                    <a href="?q={{ query|urlencode }}&book_type={{ book_type }}&page={{ page_num }}" class="page-link">{{ page_num }}</a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+
+        {% if books.has_next %}
+            <a href="?q={{ query|urlencode }}&book_type={{ book_type }}&page={{ books.next_page_number }}" class="page-link">Next</a>
+            <a href="?q={{ query|urlencode }}&book_type={{ book_type }}&page={{ paginator.num_pages }}" class="page-link">Last &raquo;</a>
+        {% else %}
+            <span class="page-link disabled">Next</span>
+            <span class="page-link disabled">Last &raquo;</span>
+        {% endif %}
+    </div>
+</div>
+
+{% load static %}
+<!-- JavaScript -->
+<script>
+    // Show loading spinner on form submit
+    document.getElementById('search-form').addEventListener('submit', function(event) {
+        document.getElementById('loading-spinner').style.display = 'block';
+        document.querySelector('.search-section').classList.add('loading');
+    });
+
+    // Show loading spinner on pagination link clicks
+    const paginationLinks = document.querySelectorAll('.page-link:not(.disabled)');
+    paginationLinks.forEach(function(link) {
+        link.addEventListener('click', function(event) {
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.querySelector('.search-section').classList.add('loading');
+        });
+    });
+
+    // Show loading spinner on radio button change
+    document.querySelectorAll('input[name="book_type"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.querySelector('.search-section').classList.add('loading');
+            this.form.submit();
+        });
+    });
+
+    // Hide loading spinner and remove 'loading' class when page is fully loaded
+    window.addEventListener('load', function() {
+        document.getElementById('loading-spinner').style.display = 'none';
+        document.querySelector('.search-section').classList.remove('loading');
+    });
+
+    // Function to open the modal and set the book title and description
+    function openModal(title, description) {
+        const modal = new bootstrap.Modal(document.getElementById('bookModal'));
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-description').textContent = description;
+        modal.show();
+    }
+
+    // Event listener for each "Read More" button
+    document.querySelectorAll('.read-more').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            const bookTitle = this.getAttribute('data-title');
+            const bookDescription = this.getAttribute('data-description');
+            openModal(bookTitle, bookDescription);
+        });
+    });
+
+    document.querySelectorAll('.book-card h3').forEach(function(title) {
+        let words = title.innerText.split(' ');
+        if (words.length > 5) {
+            title.innerText = words.slice(0, 5).join(' ') + '...';
+        }
+    });
+
+    // Enhanced Snowflake animation
+    let ww = 0;
+    let wh = 0;
+    const snowflakeGIFs = ["{% static 'Horny.gif' %}","{% static 'Horny_Jail.gif' %}","{% static 'randowis-smirk.gif' %}","{% static 'randowis.gif' %}"]; // Snowflake characters
+    let flakeCount = 0;
+    const maxFlakes = 200;
+    let animationFrameId = null;
+
+    function init() {
+        updateViewportSize();
+        window.addEventListener("resize", updateViewportSize);
+    }
+
+    function updateViewportSize() {
+        ww = window.innerWidth;
+        wh = window.innerHeight;
+    }
+
+    function createSnowflake(initial) {
+        if (flakeCount >= maxFlakes) return;
+
+        const snowflake = document.createElement("img");
+        snowflake.className = "snowflake";
+        snowflake.src = snowflakeGIFs[Math.floor(Math.random() * snowflakeGIFs.length)];
+
+        const size = Math.random() * 20 + 10; // Random size between 10px and 30px
+        const startX = Math.random() * ww;
+        const startY = initial ? Math.random() * wh : -size;
+        const speed = Math.random() * 1 + 0.5;
+        const sway = Math.random() * 2 - 1;
+
+        Object.assign(snowflake.style, {
+            position: "fixed",
+            top: `${startY}px`,
+            left: `${startX}px`,
+            width: `${size}px`,
+            height: `${size}px`,
+            pointerEvents: "none",
+            zIndex: "1",
+            opacity: Math.random() * 0.8 + 0.2,
+        });
+
+        snowflake.dataset.speed = speed.toString();
+        snowflake.dataset.sway = sway.toString();
+        snowflake.dataset.x = startX.toString();
+        snowflake.dataset.y = startY.toString();
+
+        document.body.appendChild(snowflake);
+        flakeCount++;
+    }
+
+    function moveSnowflakes() {
+        const snowflakes = document.querySelectorAll(".snowflake");
+
+        snowflakes.forEach((flake) => {
+            let x = parseFloat(flake.dataset.x);
+            let y = parseFloat(flake.dataset.y);
+            const speed = parseFloat(flake.dataset.speed);
+            const sway = parseFloat(flake.dataset.sway);
+
+            // Update position
+            y += speed; // Move down
+            x += Math.sin(y / 50) * sway; // Gentle sway
+
+            // Reappear at the top if the snowflake moves off the bottom
+            if (y > wh) {
+                y = -20;
+                x = Math.random() * ww; // Randomize horizontal position
+            }
+
+            // Update flake position
+            flake.dataset.x = x.toString();
+            flake.dataset.y = y.toString();
+            flake.style.top = `${y}px`;
+            flake.style.left = `${x}px`;
+        });
+
+        // Add new snowflakes if under the max count
+        if (flakeCount < maxFlakes) {
+            createSnowflake(false);
+        }
+
+        animationFrameId = requestAnimationFrame(moveSnowflakes);
+    }   
+
+    function startSnowfall() {
+        if (!animationFrameId) {
+            // Add initial snowflakes
+            for (let i = 0; i < 50; i++) {
+                createSnowflake(true);
+            }
+            moveSnowflakes();
+        }
+    }
+
+    function stopSnowfall() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+
+    function removeSnowflakes() {
+        const snowflakes = document.querySelectorAll(".snowflake");
+        snowflakes.forEach((flake) => {
+            flake.remove();
+        });
+        flakeCount = 0;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const audio = document.getElementById('backgroundMusic');
+        const audioControl = document.getElementById('audioControl');
+
+        init(); // Initialize snowfall parameters
+
+        audioControl.addEventListener('click', function() {
+            if (audio.paused) {
+                audio.play().then(() => {
+                    audioControl.textContent = 'Pause Music';
+                    startSnowfall();
+                }).catch((error) => {
+                    console.error('Error playing audio:', error);
+                    alert('Failed to play audio. Please check your browser settings.');
+                });
+            } else {
+                audio.pause();
+                audioControl.textContent = 'Play Music';
+                stopSnowfall();
+                removeSnowflakes();
+            }
+        });
+
+        audio.addEventListener('playing', function() {
+            audioControl.textContent = 'Pause Music';
+        });
+
+        audio.addEventListener('pause', function() {
+            audioControl.textContent = 'Play Music';
+        });
+        
+        audio.addEventListener('ended', function() {
+            audioControl.textContent = 'Play Music';
+            stopSnowfall();
+            removeSnowflakes();
+        });
+
+        // Check if the audio file is actually loaded
+        audio.addEventListener('loadeddata', function() {
+            console.log('Audio file loaded successfully');
+        });
+
+        audio.addEventListener('error', function(e) {
+            console.error('Error loading audio file:', e);
+            alert('Failed to load audio file. Please check the file path and server configuration.');
+        });
+    });
+</script>
+
+<!-- CSS for Spinner, Book Grid, and overall styling -->
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+        overflow-x: hidden;
+    }   
+
+    .snowflake {
+        font-family: Arial, sans-serif; /* Set a clean font for Unicode snowflakes */
+        animation: sway 3s infinite ease-in-out;
+        transition: opacity 1s;
+    }
+
+    .search-section {
+        margin: 0 -15px;
+        padding: 2rem;
+        background-color: rgba(52, 152, 219, 0.7);
+        border-radius: 0;
+        height: 205px;
+        width: 130%;
+        max-width: 2200px;
+        margin-left: -1.2%;
+        z-index: -1000;
+    }
+
+    .spinner-container {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        margin: 0 auto;
+    }
+
+    .spinner {
+        position: absolute;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #FF5733;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+    }
+
+    .spinner-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 12px;
+        font-weight: bold;
+        color: #333;
+        animation: spin 1s linear infinite reverse;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .book-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(335px, 1fr));
+        gap: 2rem;
+        padding: 1rem;
+        margin: 0 auto;
+        max-width: 1200px;
+    }
+
+    .book-card {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        height: 100%;
+        width: 105%;
+        overflow: hidden;
+    }
+
+    .book-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .book-cover {
+        width: 100%;
+        height: 200px;
+        overflow: hidden;
+        background: #f5f5f5;
+    }
+
+    .book-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .no-image {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        color: #666;
+        font-style: italic;
+    }
+
+    .book-info {
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
+        flex-grow: 1;
+    }
+
+    .book-title {
+        font-size: 1.25rem;
+        margin: 0 0 1rem 0;
+        line-height: 1.4;
+        height: 2.5em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .book-details {
+        height: 7.8em;
+        overflow: hidden;
+    }
+
+    .book-info h3 {
+        margin-top: 0;
+        font-size: 1.2em;
+        color: #2c3e50;
+    }
+
+    .book-info p {
+        margin: 5px 0;
+        font-size: 0.9em;
+    }
+
+    .book-description {
+        flex: 1;
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        height: 4.5em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical; 
+    }
+
+    .book-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        margin-bottom: 20px;
+    }
+
+    .read-more:hover {
+        background-color: #0056b3;
+    }
+
+    .book-links {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-top: auto;
+    }
+
+    .book-links .btn {
+        flex: 1;
+        padding: 10px 15px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 0.9em;
+        text-align: center;
+        transition: background-color 0.3s, opacity 0.2s;
+    }
+
+    .btn {
+        padding: 0.5rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .btn-info {
+        background-color: #3498db;
+        color: #fff;
+    }
+
+    .btn-preview {
+        background-color: #2ecc71 !important;
+        color: #fff;
+    }
+
+    .read-more {
+        background-color: #007bff !important;
+        color: white;
+    }
+
+    .btn:hover {
+        opacity: 0.8;
+    }
+
+    .book-links .btn:hover, .book-links .read-more:hover {
+        opacity: 0.8;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+    }
+
+    .page-link {
+        padding: 5px 10px;
+        margin: 0 5px;
+        border: 1px solid #3498db;
+        color: #3498db;
+        text-decoration: none;
+        border-radius: 5px;
+    }
+
+    .page-link.active {
+        background-color: #3498db;
+        color: #fff;
+    }
+
+    .page-link.disabled {
+        color: #ccc;
+        border-color: #ccc;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+        .book-grid {
+            grid-template-columns: 1fr;
+            padding: 1rem;
+        }
+        
+        .book-content {
+            padding: 1rem;
+        }
+    }
+
+    .modal-content {
+        animation: unfold 0.8s ease-out;
+    }
+
+    @keyframes unfold {
+        0% {
+            transform: scaleY(0.005) scaleX(0);
+        }
+        50% {
+            transform: scaleY(0.005) scaleX(1);
+        }
+        100% {
+            transform: scaleY(1) scaleX(1);
+        }
+    }
+
+    @keyframes unfoldOut {
+        0% {
+        transform:scaleY(1) scaleX(1);
+        }
+        50% {
+        transform:scaleY(.005) scaleX(1);
+        }
+        100% {
+        transform:scaleY(.005) scaleX(0);
+        }
+    }
+
+    @keyframes zoomOut {
+        0% {
+        transform:scale(1);
+        }
+        100% {
+        transform:scale(0);
+        }
+    }
+
+    #loading-spinner {
+        margin-top: 20px;
+        padding-bottom: 2rem;
+    }
+
+    .search-section.loading {
+        min-height: 300px;
+    }
+
+    @keyframes sway {
+        0% { transform: translateX(-2px) rotate(-5deg); }
+        50% { transform: translateX(2px) rotate(5deg); }
+        100% { transform: translateX(-2px) rotate(-5deg); }
+    }
+
+    .snowman {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 2;
+    }
+
+    .snowman-body {
+        width: 100px;
+        height: 100px;
+        background-color: white;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 0;
+    }
+
+    .snowman-head {
+        width: 70px;
+        height: 70px;
+        background-color: white;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 80px;
+        left: 15px;
+    }
+
+    .snowman-eye {
+        width: 10px;
+        height: 10px;
+        background-color: black;
+        border-radius: 50%;
+        position: absolute;
+    }
+
+    .snowman-eye.left {
+        top: 25px;
+        left: 25px;
+    }
+
+    .snowman-eye.right {
+        top: 25px;
+        right: 25px;
+    }
+
+    .snowman-nose {
+        width: 0;
+        height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 20px solid orange;
+        position: absolute;
+        top: 35px;
+        left: 30px;
+    }
+
+    .snowman-buttons::before,
+    .snowman-buttons::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        background-color: black;
+        border-radius: 50%;
+        position: absolute;
+        left: 45px;
+    }
+
+    .snowman-buttons::before {
+        top: 110px;
+    }
+
+    .snowman-buttons::after {
+        top: 130px;
+    }
+</style>
+{% endblock %}
