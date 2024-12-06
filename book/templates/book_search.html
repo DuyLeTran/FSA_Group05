@@ -2,17 +2,17 @@
 
 {% block content %}
 <!-- Book Search Section -->
-<div class="search-section text-center py-4" style="background-color: #3498db; border-radius: 10px; margin-top: -1.1rem;">
-    <h1 style="color:#ebf1ee;">Book Search</h1>
-
+{% load static %}
+<div class="search-section text-center py-4" style="background-color: rgba(52, 152, 219, 0.7); border-radius: 10px; margin-top: -1.1rem; position: relative; z-index: 0;">
+    <h1 style="color:#ebf1ee; margin-left:-20%;">Book Search</h1>
     <form method="GET" action="{% url 'book:book_search' %}" style="display: inline-block; margin-top: 10px;" id="search-form">
-        <div style="display: inline-block; position: relative;">
+        <div style="display: inline-block; position: relative;margin-left:-100%;">
             <input type="text" name="q" placeholder="Search for books..." value="{{ query }}" required style="padding: 10px 15px; width: 300px; border: 1px solid #3498db; border-radius: 25px; font-size: 1rem;">
             <button type="submit" style="padding: 10px 20px; position: absolute; right: -90px; top: 0; background-color: #35DBB2; color: #ebf1ee; border: none; border-radius: 25px; cursor: pointer; font-size: 1rem;">Search</button>
         </div>
         
         <!-- Radio buttons for selecting book type -->
-        <div style="margin-top: 10px;">
+        <div style="margin-top: 10px;margin-left:-90%;">
             <input type="radio" id="free" name="book_type" value="free" {% if request.GET.book_type == "free" or not request.GET.book_type %}checked{% endif %}>
             <label for="free" style="color:#ebf1ee;">Free Books</label>
 
@@ -28,6 +28,27 @@
             <div class="spinner-text">Loading</div>
         </div>
     </div>
+</div>
+
+<div class="audio-control" style="relative; top: 10px; right: 10px; z-index: 1000;">
+    <audio id="backgroundMusic" preload="auto" loop>
+        <source src="{% static 'jingle-bells-christmas-classic-piano-melody_100bpm_G_major.wav' %}" type="audio/mp3">
+        Your browser does not support the audio element.
+    </audio>
+    <button id="audioControl" style="background-color: #35DBB2; color: #ebf1ee; border: none; border-radius: 25px; padding: 10px 20px; cursor: pointer; font-size: 1rem;">
+        Play Music
+    </button>
+</div>
+
+
+<!-- Snowman -->
+<div id="snowman" class="snowman">
+    <div class="snowman-body"></div>
+    <div class="snowman-head"></div>
+    <div class="snowman-eye left"></div>
+    <div class="snowman-eye right"></div>
+    <div class="snowman-nose"></div>
+    <div class="snowman-buttons"></div>
 </div>
 
 <!-- Book Results Section -->
@@ -124,6 +145,7 @@
     </div>
 </div>
 
+{% load static %}
 <!-- JavaScript -->
 <script>
     // Show loading spinner on form submit
@@ -180,6 +202,164 @@
             title.innerText = words.slice(0, 5).join(' ') + '...';
         }
     });
+
+    // Enhanced Snowflake animation
+    let ww = 0;
+    let wh = 0;
+    const snowflakeGIFs = ["{% static 'Horny.gif' %}","{% static 'Horny_Jail.gif' %}","{% static 'randowis-smirk.gif' %}","{% static 'randowis.gif' %}"]; // Snowflake characters
+    let flakeCount = 0;
+    const maxFlakes = 200;
+    let animationFrameId = null;
+
+    function init() {
+        updateViewportSize();
+        window.addEventListener("resize", updateViewportSize);
+    }
+
+    function updateViewportSize() {
+        ww = window.innerWidth;
+        wh = window.innerHeight;
+    }
+
+    function createSnowflake(initial) {
+        if (flakeCount >= maxFlakes) return;
+
+        const snowflake = document.createElement("img");
+        snowflake.className = "snowflake";
+        snowflake.src = snowflakeGIFs[Math.floor(Math.random() * snowflakeGIFs.length)];
+
+        const size = Math.random() * 20 + 10; // Random size between 10px and 30px
+        const startX = Math.random() * ww;
+        const startY = initial ? Math.random() * wh : -size;
+        const speed = Math.random() * 1 + 0.5;
+        const sway = Math.random() * 2 - 1;
+
+        Object.assign(snowflake.style, {
+            position: "fixed",
+            top: `${startY}px`,
+            left: `${startX}px`,
+            width: `${size}px`,
+            height: `${size}px`,
+            pointerEvents: "none",
+            zIndex: "1",
+            opacity: Math.random() * 0.8 + 0.2,
+        });
+
+        snowflake.dataset.speed = speed.toString();
+        snowflake.dataset.sway = sway.toString();
+        snowflake.dataset.x = startX.toString();
+        snowflake.dataset.y = startY.toString();
+
+        document.body.appendChild(snowflake);
+        flakeCount++;
+    }
+
+    function moveSnowflakes() {
+        const snowflakes = document.querySelectorAll(".snowflake");
+
+        snowflakes.forEach((flake) => {
+            let x = parseFloat(flake.dataset.x);
+            let y = parseFloat(flake.dataset.y);
+            const speed = parseFloat(flake.dataset.speed);
+            const sway = parseFloat(flake.dataset.sway);
+
+            // Update position
+            y += speed; // Move down
+            x += Math.sin(y / 50) * sway; // Gentle sway
+
+            // Reappear at the top if the snowflake moves off the bottom
+            if (y > wh) {
+                y = -20;
+                x = Math.random() * ww; // Randomize horizontal position
+            }
+
+            // Update flake position
+            flake.dataset.x = x.toString();
+            flake.dataset.y = y.toString();
+            flake.style.top = `${y}px`;
+            flake.style.left = `${x}px`;
+        });
+
+        // Add new snowflakes if under the max count
+        if (flakeCount < maxFlakes) {
+            createSnowflake(false);
+        }
+
+        animationFrameId = requestAnimationFrame(moveSnowflakes);
+    }   
+
+    function startSnowfall() {
+        if (!animationFrameId) {
+            // Add initial snowflakes
+            for (let i = 0; i < 50; i++) {
+                createSnowflake(true);
+            }
+            moveSnowflakes();
+        }
+    }
+
+    function stopSnowfall() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+
+    function removeSnowflakes() {
+        const snowflakes = document.querySelectorAll(".snowflake");
+        snowflakes.forEach((flake) => {
+            flake.remove();
+        });
+        flakeCount = 0;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const audio = document.getElementById('backgroundMusic');
+        const audioControl = document.getElementById('audioControl');
+
+        init(); // Initialize snowfall parameters
+
+        audioControl.addEventListener('click', function() {
+            if (audio.paused) {
+                audio.play().then(() => {
+                    audioControl.textContent = 'Pause Music';
+                    startSnowfall();
+                }).catch((error) => {
+                    console.error('Error playing audio:', error);
+                    alert('Failed to play audio. Please check your browser settings.');
+                });
+            } else {
+                audio.pause();
+                audioControl.textContent = 'Play Music';
+                stopSnowfall();
+                removeSnowflakes();
+            }
+        });
+
+        audio.addEventListener('playing', function() {
+            audioControl.textContent = 'Pause Music';
+        });
+
+        audio.addEventListener('pause', function() {
+            audioControl.textContent = 'Play Music';
+        });
+        
+        audio.addEventListener('ended', function() {
+            audioControl.textContent = 'Play Music';
+            stopSnowfall();
+            removeSnowflakes();
+        });
+
+        // Check if the audio file is actually loaded
+        audio.addEventListener('loadeddata', function() {
+            console.log('Audio file loaded successfully');
+        });
+
+        audio.addEventListener('error', function(e) {
+            console.error('Error loading audio file:', e);
+            alert('Failed to load audio file. Please check the file path and server configuration.');
+        });
+    });
 </script>
 
 <!-- CSS for Spinner, Book Grid, and overall styling -->
@@ -188,18 +368,26 @@
         font-family: Arial, sans-serif;
         line-height: 1.6;
         color: #333;
-        background-color: #f4f4f4;
+        background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+        overflow-x: hidden;
+    }   
+
+    .snowflake {
+        font-family: Arial, sans-serif; /* Set a clean font for Unicode snowflakes */
+        animation: sway 3s infinite ease-in-out;
+        transition: opacity 1s;
     }
 
     .search-section {
         margin: 0 -15px;
         padding: 2rem;
-        background-color: #3498db; /* Change this to your desired color */
+        background-color: rgba(52, 152, 219, 0.7);
         border-radius: 0;
-        height: 205px; /* Adjust this value to change the height */
+        height: 205px;
         width: 130%;
-        max-width: 2200px; /* Adjust this value to change the maximum width */
-        margin-left: -15%;
+        max-width: 2200px;
+        margin-left: -1.2%;
+        z-index: -1000;
     }
 
     .spinner-container {
@@ -237,7 +425,7 @@
 
     .book-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(335px, 1fr));
         gap: 2rem;
         padding: 1rem;
         margin: 0 auto;
@@ -251,6 +439,7 @@
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         height: 100%;
+        width: 105%;
         overflow: hidden;
     }
 
@@ -372,12 +561,12 @@
     }
 
     .btn-preview {
-        background-color: #2ecc71;
+        background-color: #2ecc71 !important;
         color: #fff;
     }
 
     .read-more {
-        background-color: #007bff;
+        background-color: #007bff !important;
         color: white;
     }
 
@@ -443,7 +632,6 @@
         }
     }
 
-
     @keyframes unfoldOut {
         0% {
         transform:scaleY(1) scaleX(1);
@@ -467,11 +655,91 @@
 
     #loading-spinner {
         margin-top: 20px;
-        padding-bottom: 2rem; /* Add padding to extend the background */
+        padding-bottom: 2rem;
     }
 
     .search-section.loading {
-        min-height: 300px; /* Increased height when loading */
+        min-height: 300px;
+    }
+
+    @keyframes sway {
+        0% { transform: translateX(-2px) rotate(-5deg); }
+        50% { transform: translateX(2px) rotate(5deg); }
+        100% { transform: translateX(-2px) rotate(-5deg); }
+    }
+
+    .snowman {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 2;
+    }
+
+    .snowman-body {
+        width: 100px;
+        height: 100px;
+        background-color: white;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 0;
+    }
+
+    .snowman-head {
+        width: 70px;
+        height: 70px;
+        background-color: white;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 80px;
+        left: 15px;
+    }
+
+    .snowman-eye {
+        width: 10px;
+        height: 10px;
+        background-color: black;
+        border-radius: 50%;
+        position: absolute;
+    }
+
+    .snowman-eye.left {
+        top: 25px;
+        left: 25px;
+    }
+
+    .snowman-eye.right {
+        top: 25px;
+        right: 25px;
+    }
+
+    .snowman-nose {
+        width: 0;
+        height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 20px solid orange;
+        position: absolute;
+        top: 35px;
+        left: 30px;
+    }
+
+    .snowman-buttons::before,
+    .snowman-buttons::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        background-color: black;
+        border-radius: 50%;
+        position: absolute;
+        left: 45px;
+    }
+
+    .snowman-buttons::before {
+        top: 110px;
+    }
+
+    .snowman-buttons::after {
+        top: 130px;
     }
 </style>
 {% endblock %}
