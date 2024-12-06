@@ -234,9 +234,9 @@ def risk_prediction_report(request):
                 data[course_name] = [0, 0, 0]  
 
 
-            if activity_count < session_count or score < 65:
+            if activity_count < session_count and score < 65:
                 data[course_name][2] += 1  
-            elif activity_count >= session_count or score > 65:
+            elif activity_count >= session_count and score > 65:
                 data[course_name][0] += 1 
             else:
                 data[course_name][1] += 1
